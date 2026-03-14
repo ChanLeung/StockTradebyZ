@@ -55,10 +55,10 @@
 
 ### 3.2 安装依赖
 
-项目未内置 requirements 文件，可先安装以下核心包：
+在项目根目录执行：
 
 ~~~bash
-pip install pandas numpy pyyaml tqdm tushare numba streamlit plotly kaleido google-genai
+pip install -r requirements.txt
 ~~~
 
 ### 3.3 设置环境变量
@@ -75,6 +75,21 @@ Windows PowerShell（永久写入）：
 ---
 
 ## 4. 快速开始（一键跑通）
+
+### 4.1 Clone 项目
+
+~~~bash
+git clone https://github.com/SebastienZh/StockTradebyZ
+cd StockTradebyZ
+~~~
+
+### 4.2 安装依赖
+
+~~~bash
+pip install -r requirements.txt
+~~~
+
+### 4.3 运行一键脚本
 
 在项目根目录执行：
 
