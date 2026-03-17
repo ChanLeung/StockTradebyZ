@@ -59,19 +59,47 @@ cd StockTradebyZ
 ### 3.2 安装依赖
 
 ~~~bash
-pip install -r requirements.txt
+uv venv -p 3.12 --clear
+source .venv/bin/activate
+uv pip install -r requirements.txt
+~~~
+
+Windows PowerShell:
+
+~~~powershell
+uv venv -p 3.12 --clear
+.venv\Scripts\Activate.ps1
+uv pip install -r requirements.txt
 ~~~
 
 ### 3.3 设置环境变量
 
-Windows PowerShell（永久写入）：
+推荐使用配置文件（`.env`）管理密钥，在项目根目录新建 `.env`：
 
-~~~powershell
-[Environment]::SetEnvironmentVariable("TUSHARE_TOKEN", "你的TushareToken", "User")
-[Environment]::SetEnvironmentVariable("GEMINI_API_KEY", "你的GeminiApiKey", "User")
+~~~dotenv
+TUSHARE_TOKEN=你的TushareToken
+GEMINI_API_KEY=你的GeminiApiKey
 ~~~
 
-写入后请重开终端，环境变量才会在新会话中生效。
+macOS / Linux（每次新开终端后执行一次）：
+
+~~~bash
+set -a
+source .env
+set +a
+~~~
+
+Windows PowerShell：
+
+~~~powershell
+Get-Content .env | ForEach-Object {
+  if ($_ -match '^\s*([^#][^=]*)=(.*)$') {
+    [Environment]::SetEnvironmentVariable($matches[1].Trim(), $matches[2].Trim(), "Process")
+  }
+}
+~~~
+
+`.env` 已在 `.gitignore` 中，默认不会被提交到仓库。
 
 ### 3.4 运行一键脚本
 
@@ -208,7 +236,7 @@ data/review/日期/suggestion.json
 ### Q2：导出图表时报 write_image 错误
 
 - 确认已安装 kaleido
-- 重新安装：pip install -U kaleido
+- 重新安装：uv pip install -U kaleido
 
 ### Q3：Gemini 运行失败
 
