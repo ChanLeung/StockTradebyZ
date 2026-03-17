@@ -1,0 +1,18 @@
+{
+  "trend_reasoning": "均线系统呈现多头排列，短期均线在长期均线上方运行且整体斜率向上，趋势结构健康，属于典型的上升趋势延续。",
+  "position_reasoning": "股价在经历前期高点回调后，目前处于中位整理区，上方距离历史高点仍有空间，但已脱离底部启动区，属于中位震荡推进阶段。",
+  "volume_reasoning": "近期上涨阶段伴随温和放量，回调过程中成交量呈现缩量态势，量价配合较为理想，未见明显的破坏性放量阴线。",
+  "abnormal_move_reasoning": "前期在上涨初期存在明显的放量阳线建仓痕迹，且整体涨幅处于合理区间，主力资金运作迹象明显，未见出货特征。",
+  "signal_reasoning": "当前处于上升趋势中的良性调整后企稳，均线支撑有效，具备再次向上突破的潜力，符合主升启动的逻辑。",
+  "scores": {
+    "trend_structure": 4,
+    "price_position": 4,
+    "volume_behavior": 4,
+    "previous_abnormal_move": 4
+  },
+  "total_score": 4.0,
+  "signal_type": "trend_start",
+  "verdict": "PASS",
+  "comment": "该股均线多头排列趋势稳健，量价配合呈现良性缩量回调特征，前期主力建仓痕迹明确，目前处于中位蓄势阶段，具备进一步向上拓展空间的潜力。",
+  "code": "002795"
+}

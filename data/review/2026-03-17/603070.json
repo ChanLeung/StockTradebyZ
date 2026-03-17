@@ -1,0 +1,18 @@
+{
+  "trend_reasoning": "均线系统呈多头排列，短期均线在下方形成有效支撑，趋势整体向上，但近期价格出现回落，短期均线有走平迹象。",
+  "position_reasoning": "股价处于近期上涨后的高位回调阶段，距离前期高点较近，上方抛压明显，当前位置性价比一般。",
+  "volume_reasoning": "近期上涨阶段伴随明显放量，但高位回调过程中成交量并未有效萎缩，且近期出现连续阴线，量价配合显示出一定的获利回吐压力。",
+  "abnormal_move_reasoning": "前期存在明显的放量拉升动作，主力建仓痕迹清晰，但目前涨幅已较大，且高位出现放量滞涨迹象，存在获利盘出货风险。",
+  "signal_reasoning": "综合趋势、位置及量价表现，当前处于主升浪后的高位震荡期，短期面临方向选择，存在出货风险。",
+  "scores": {
+    "trend_structure": 4,
+    "price_position": 2,
+    "volume_behavior": 3,
+    "previous_abnormal_move": 3
+  },
+  "total_score": 3.0,
+  "signal_type": "distribution_risk",
+  "verdict": "FAIL",
+  "comment": "该股均线多头趋势尚存，但高位放量滞涨且回调缩量不明显，前期主力获利丰厚，当前处于高位出货风险区，建议规避。",
+  "code": "603070"
+}

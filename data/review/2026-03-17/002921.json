@@ -1,0 +1,18 @@
+{
+  "trend_reasoning": "短期均线与长期均线呈多头排列，且均线整体向上发散，趋势结构处于健康上升通道中。",
+  "position_reasoning": "股价处于前期上涨后的高位震荡整理阶段，距离历史高点较近，上方空间相对有限，属于高位横盘整理区。",
+  "volume_reasoning": "近期上涨波段成交量较前期明显放大，但高位震荡期间量能有所萎缩，未出现明显的放量出货阴线，量价关系尚属健康。",
+  "abnormal_move_reasoning": "1月初出现明显的放量拉升，标志着主力资金介入，且该波段涨幅未超过100%，属于典型的建仓及拉升过程。",
+  "signal_reasoning": "当前处于主升浪后的高位横盘，虽趋势未坏，但已非启动点，需警惕高位震荡后的方向选择。",
+  "scores": {
+    "trend_structure": 4,
+    "price_position": 2,
+    "volume_behavior": 4,
+    "previous_abnormal_move": 4
+  },
+  "total_score": 3.6,
+  "signal_type": "distribution_risk",
+  "verdict": "WATCH",
+  "comment": "该股均线多头排列趋势良好，前期放量拉升痕迹明显，但目前股价处于高位震荡区间，上方空间受限且存在一定获利回吐压力，建议密切关注横盘整理后的方向选择。",
+  "code": "002921"
+}

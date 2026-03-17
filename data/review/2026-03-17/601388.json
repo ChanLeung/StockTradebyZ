@@ -1,0 +1,18 @@
+{
+  "trend_reasoning": "均线系统呈现多头排列，短期均线在长期均线上方运行且整体向上，趋势结构健康，属于典型的上升趋势延续阶段。",
+  "position_reasoning": "股价处于前期放量冲高后的高位震荡整理区，距离历史高点较近，上方抛压存在，属于中高位区域，性价比一般。",
+  "volume_reasoning": "前期冲高阶段伴随明显放量，近期回调过程中成交量呈现萎缩态势，量价配合尚可，未出现破坏性的放量阴线。",
+  "abnormal_move_reasoning": "二月初出现明显的放量大阳线，属于主力资金介入的异动信号，且该波段涨幅未超过50%，具备一定的后续动能。",
+  "signal_reasoning": "当前处于主升浪后的高位横盘整理，趋势未破，量能收敛，具备再次向上突破的潜力，判定为趋势启动后的整理。",
+  "scores": {
+    "trend_structure": 4,
+    "price_position": 3,
+    "volume_behavior": 4,
+    "previous_abnormal_move": 4
+  },
+  "total_score": 3.8,
+  "signal_type": "trend_start",
+  "verdict": "WATCH",
+  "comment": "该股均线多头排列趋势良好，二月初放量异动后进入高位缩量整理，目前处于关键压力位附近，需关注能否放量突破前高，上方空间与抛压并存。",
+  "code": "601388"
+}

@@ -1,0 +1,18 @@
+{
+  "trend_reasoning": "短期均线上穿长期均线后呈现多头排列，且均线斜率向上，趋势结构处于健康上升通道中。",
+  "position_reasoning": "股价处于近期震荡平台上方，虽接近前期高点区域，但整体位置尚属中位，上方仍有一定空间。",
+  "volume_reasoning": "一月份的放量突破后，近期回调呈现明显的缩量特征，量价配合健康，未见破坏性放量阴线。",
+  "abnormal_move_reasoning": "一月份出现过一次明显的放量大阳线突破，具备主力建仓或启动的异动特征，且涨幅未见过度透支。",
+  "signal_reasoning": "均线多头排列且量价配合良好，处于突破后的良性整理阶段，具备进一步向上波段的潜力。",
+  "scores": {
+    "trend_structure": 4,
+    "price_position": 4,
+    "volume_behavior": 5,
+    "previous_abnormal_move": 5
+  },
+  "total_score": 4.6,
+  "signal_type": "trend_start",
+  "verdict": "PASS",
+  "comment": "该股均线呈多头排列，一月放量突破后回调缩量，主力建仓痕迹明显，目前处于良性整理后的蓄势阶段，具备波段爆发潜力。",
+  "code": "605162"
+}

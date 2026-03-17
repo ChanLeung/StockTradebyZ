@@ -1,0 +1,18 @@
+{
+  "trend_reasoning": "短期均线与长期均线呈多头排列，且短期均线斜率向上，价格整体沿均线震荡上行，趋势结构健康。",
+  "position_reasoning": "股价处于近期高位区域，虽然突破了前期平台，但目前已接近阶段性高点，上方空间相对有限，属于中高位震荡。",
+  "volume_reasoning": "近期上涨阶段伴随成交量放大，但高位出现连续阴线且量能未明显萎缩，量价配合显示出一定的抛压，上涨动能有所减弱。",
+  "abnormal_move_reasoning": "前期在10月和1月均有明显的放量建仓痕迹，且涨幅处于合理区间，主力资金介入迹象明显，但目前处于获利回吐阶段。",
+  "signal_reasoning": "当前股价在高位出现滞涨迹象，且伴随一定抛压，短期内存在回调风险，需观察均线支撑力度，故判定为出货风险信号。",
+  "scores": {
+    "trend_structure": 4,
+    "price_position": 2,
+    "volume_behavior": 3,
+    "previous_abnormal_move": 4
+  },
+  "total_score": 3.3,
+  "signal_type": "distribution_risk",
+  "verdict": "WATCH",
+  "comment": "该股均线多头趋势尚存，但股价已处高位且近期量价配合转弱，前期主力建仓明显，目前需警惕高位获利盘抛压带来的回调风险。",
+  "code": "603356"
+}

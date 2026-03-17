@@ -44,7 +44,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "output_dir": "data/review",
     "prompt_path": "agent/prompt.md",
     # Gemini 模型参数
-    "model": "gemini-3.1-pro-preview",
+    # "model": "gemini-3.1-pro-preview",
+    "model": "gemini-3.1-flash-lite-preview",
     "request_delay": 5,
     "skip_existing": False,
     "suggest_min_score": 4.0,
@@ -78,12 +79,15 @@ def load_config(config_path: Path | None = None) -> dict[str, Any]:
 class GeminiReviewer(BaseReviewer):
     def __init__(self, config):
         super().__init__(config)
-        
+
         api_key = os.environ.get("GEMINI_API_KEY", "")
         if not api_key:
-            print("[ERROR] 未找到环境变量 GEMINI_API_KEY，请先设置后重试。", file=sys.stderr)
+            print(
+                "[ERROR] 未找到环境变量 GEMINI_API_KEY，请先设置后重试。",
+                file=sys.stderr,
+            )
             sys.exit(1)
-            
+
         self.client = genai.Client(api_key=api_key)
 
     @staticmethod

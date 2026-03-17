@@ -1,0 +1,18 @@
+{
+  "trend_reasoning": "均线系统呈现多头排列，但短期均线已出现拐头向下迹象，且价格近期跌破短期均线，趋势处于由强转弱的调整阶段。",
+  "position_reasoning": "价格处于前期高位回落后的中位区，上方存在明显的近期高点压力，且当前位置距离下方长期均线支撑仍有一定距离，性价比一般。",
+  "volume_reasoning": "近期上涨阶段成交量较前期明显萎缩，而回调过程中出现阴线放量，量价配合呈现出一定的出货或获利回吐特征，缺乏上涨动能。",
+  "abnormal_move_reasoning": "前期存在明显的放量拉升阶段，但该波段涨幅已较大，且当前高位区域成交量分布显示主力有减仓迹象，缺乏二次启动的明确信号。",
+  "signal_reasoning": "综合趋势转弱、高位放量阴线以及均线支撑测试情况，当前处于获利盘出逃后的震荡下行风险期。",
+  "scores": {
+    "trend_structure": 3,
+    "price_position": 2,
+    "volume_behavior": 2,
+    "previous_abnormal_move": 2
+  },
+  "total_score": 2.2,
+  "signal_type": "distribution_risk",
+  "verdict": "FAIL",
+  "comment": "该股短期均线拐头向下，高位放量阴线显示获利盘出逃迹象明显，当前处于趋势衰竭后的调整期，建议规避风险。",
+  "code": "603057"
+}

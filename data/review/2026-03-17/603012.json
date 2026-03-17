@@ -1,0 +1,18 @@
+{
+  "trend_reasoning": "均线呈现明显的多头排列，短期均线在长期均线上方且保持向上斜率，趋势结构处于健康上升通道中。",
+  "position_reasoning": "股价处于近期上涨后的高位震荡区，虽然整体趋势向上，但已远离前期底部平台，上方空间受限，属于中高位区域。",
+  "volume_reasoning": "上涨阶段伴随明显放量，但近期回调过程中量能并未完全萎缩，且高位出现过放量阴线，量价配合呈现出一定的获利回吐压力。",
+  "abnormal_move_reasoning": "1月初出现过明确的放量突破信号，主力建仓痕迹清晰，且该波段涨幅在合理范围内，属于典型的启动异动。",
+  "signal_reasoning": "当前股价在高位反复震荡，且近期出现高位阴线，短期内面临获利盘抛压，属于趋势延续中的震荡调整，需警惕短期出货风险。",
+  "scores": {
+    "trend_structure": 4,
+    "price_position": 2,
+    "volume_behavior": 3,
+    "previous_abnormal_move": 4
+  },
+  "total_score": 3.2,
+  "signal_type": "distribution_risk",
+  "verdict": "WATCH",
+  "comment": "该股均线多头趋势良好，前期放量突破特征明显，但当前处于高位震荡且量价配合转弱，短期面临获利盘抛压，需警惕高位出货风险。",
+  "code": "603012"
+}

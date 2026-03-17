@@ -1,0 +1,18 @@
+{
+  "trend_reasoning": "短期均线虽仍处于长期均线上方，但斜率已明显走平甚至有拐头向下迹象，多头趋势出现衰竭，不再是流畅的上升结构。",
+  "position_reasoning": "股价在经历高位放量冲高后回落，目前处于前期高点回撤后的震荡区，上方套牢盘压力较大，且已远离低位启动区，性价比不高。",
+  "volume_reasoning": "近期高位出现明显的放量阴线，且在随后的回调过程中量能并未有效萎缩，呈现出高位震荡出货的量价特征，量价关系恶化。",
+  "abnormal_move_reasoning": "前期虽然有明显的放量建仓痕迹，但近期涨幅已远超50%，且在最高点附近伴随巨量，显示主力资金有明显的获利了结意图。",
+  "signal_reasoning": "综合趋势衰竭、高位放量阴线以及量价背离表现，当前处于明显的出货风险阶段，不具备波段爆发潜力。",
+  "scores": {
+    "trend_structure": 3,
+    "price_position": 2,
+    "volume_behavior": 2,
+    "previous_abnormal_move": 2
+  },
+  "total_score": 2.2,
+  "signal_type": "distribution_risk",
+  "verdict": "FAIL",
+  "comment": "该股短期均线走平，高位出现放量滞涨及阴线出货迹象，前期获利盘抛压沉重，目前处于明显的出货风险期，建议规避。",
+  "code": "603727"
+}

@@ -1,0 +1,18 @@
+{
+  "trend_reasoning": "均线系统呈现多头排列，短期均线在长期均线上方运行且斜率向上，趋势结构健康，处于上升通道中。",
+  "position_reasoning": "股价处于近期高位震荡区域，虽然脱离了底部平台，但距离历史高位压力区较近，上方空间相对受限，属于中位偏高区域。",
+  "volume_reasoning": "近期上涨阶段伴随明显放量，回调过程中成交量逐步萎缩，量价配合较为理想，未见破坏性放量阴线。",
+  "abnormal_move_reasoning": "1月初出现了一根带巨量的大阳线，明确了主力资金的介入意图，且该异动后的涨幅处于合理区间，未见明显的出货迹象。",
+  "signal_reasoning": "当前处于趋势延续阶段，量价结构稳健，主力建仓痕迹明显，具备进一步向上突破的潜力。",
+  "scores": {
+    "trend_structure": 4,
+    "price_position": 3,
+    "volume_behavior": 4,
+    "previous_abnormal_move": 5
+  },
+  "total_score": 4.0,
+  "signal_type": "trend_start",
+  "verdict": "PASS",
+  "comment": "该股均线多头排列趋势良好，1月初主力放量建仓特征明显，当前量价配合健康，虽临近前高压力但仍具备波段向上突破的潜力。",
+  "code": "001228"
+}

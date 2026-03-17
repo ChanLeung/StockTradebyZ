@@ -1,0 +1,18 @@
+{
+  "trend_reasoning": "短期均线已向下拐头并死叉长期均线，价格持续运行在短期均线下方，趋势已由多头转为弱势调整。",
+  "position_reasoning": "股价处于前期大幅拉升后的高位回落阶段，目前正处于寻找支撑的过程中，上方套牢盘压力较大，空间性价比极低。",
+  "volume_reasoning": "近期下跌过程中成交量持续萎缩，虽然没有出现恐慌性放量，但上涨动能完全缺失，量价结构呈现典型的阴跌特征。",
+  "abnormal_move_reasoning": "前期主升浪涨幅已远超100%，且在顶部区域伴随了明显的放量滞涨，主力出货迹象明显，目前处于获利盘回吐后的余波期。",
+  "signal_reasoning": "综合趋势转弱、高位出货特征及均线空头排列，当前处于明显的出货后调整周期，不具备波段爆发潜力。",
+  "scores": {
+    "trend_structure": 2,
+    "price_position": 1,
+    "volume_behavior": 2,
+    "previous_abnormal_move": 1
+  },
+  "total_score": 1.5,
+  "signal_type": "distribution_risk",
+  "verdict": "FAIL",
+  "comment": "该股前期主升浪涨幅巨大且伴随高位出货，当前均线已呈空头排列，量能萎缩且缺乏承接，处于明显的趋势衰竭与风险释放期，严禁参与。",
+  "code": "002718"
+}

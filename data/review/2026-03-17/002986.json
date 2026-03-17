@@ -1,0 +1,18 @@
+{
+  "trend_reasoning": "均线系统呈多头排列，短期均线斜率陡峭，价格处于主升浪后的回调阶段，仍维持在短期均线上方，趋势结构尚属健康。",
+  "position_reasoning": "股价已脱离底部整理平台并经历了一波快速拉升，当前处于高位震荡回落期，上方空间已被大幅压缩，性价比显著降低。",
+  "volume_reasoning": "近期高位出现放量阴线，且回调过程中成交量并未出现明显的缩量迹象，量价配合显示出获利盘抛压沉重，存在短期见顶风险。",
+  "abnormal_move_reasoning": "前期存在明显的放量建仓与拉升痕迹，但近期涨幅已远超50%，且高位成交量异常放大，符合主力资金在高位进行派发的特征。",
+  "signal_reasoning": "综合趋势、位置及量价表现，当前股价处于高位回调阶段，且伴随放量出货迹象，应警惕趋势反转风险。",
+  "scores": {
+    "trend_structure": 4,
+    "price_position": 1,
+    "volume_behavior": 2,
+    "previous_abnormal_move": 2
+  },
+  "total_score": 2.2,
+  "signal_type": "distribution_risk",
+  "verdict": "FAIL",
+  "comment": "该股已完成主升浪，当前处于高位放量回调阶段，量价结构恶化，主力出货迹象明显，短期面临较大的下行风险。",
+  "code": "002986"
+}

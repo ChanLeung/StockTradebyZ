@@ -1,0 +1,18 @@
+{
+  "trend_reasoning": "均线系统呈多头排列，短期均线在下方支撑价格，整体趋势向上，但近期价格出现回落，短期均线斜率有所放缓。",
+  "position_reasoning": "价格处于近期高位区域，已远离前期整理平台，上方空间不明朗，且近期出现高位震荡回落迹象，性价比降低。",
+  "volume_reasoning": "近期上涨阶段伴随成交量放大，但随后的回调过程中，阴线成交量并未有效萎缩，甚至出现放量下跌迹象，量价配合趋于恶化。",
+  "abnormal_move_reasoning": "前期存在明显的放量建仓痕迹，但目前涨幅已较大，且近期高位出现连续放量阴线，有主力资金获利了结的嫌疑。",
+  "signal_reasoning": "综合趋势、位置及量价表现，当前处于高位震荡且量能结构转弱，存在明显的获利盘出货风险，不宜追高。",
+  "scores": {
+    "trend_structure": 4,
+    "price_position": 2,
+    "volume_behavior": 2,
+    "previous_abnormal_move": 2
+  },
+  "total_score": 2.4,
+  "signal_type": "distribution_risk",
+  "verdict": "FAIL",
+  "comment": "该股目前处于高位震荡阶段，前期建仓后的涨幅已较大，近期量价配合恶化且出现放量阴线，短期面临较大的获利盘出货风险，建议规避。",
+  "code": "603530"
+}

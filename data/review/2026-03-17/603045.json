@@ -1,0 +1,18 @@
+{
+  "trend_reasoning": "均线呈现多头排列，短期均线在长期均线上方且保持向上发散，趋势结构处于健康上升通道中。",
+  "position_reasoning": "股价处于前期上涨后的回调阶段，目前回踩至短期均线附近，属于中位整理，上方空间尚未完全打开，但已脱离底部区域。",
+  "volume_reasoning": "近期上涨阶段伴随明显放量，回调过程中成交量呈现缩量态势，量价配合较为健康，未见恐慌性抛盘。",
+  "abnormal_move_reasoning": "在一月下旬出现过明显的放量突破动作，主力建仓痕迹清晰，且该波段涨幅未超过50%，仍处于主升浪的中继或延续阶段。",
+  "signal_reasoning": "当前处于上升趋势中的良性回调，均线支撑有效，量能结构支持后续可能的二次冲高，判定为趋势延续信号。",
+  "scores": {
+    "trend_structure": 4,
+    "price_position": 4,
+    "volume_behavior": 4,
+    "previous_abnormal_move": 4
+  },
+  "total_score": 4.0,
+  "signal_type": "trend_start",
+  "verdict": "PASS",
+  "comment": "该股多头趋势明确，前期主力建仓特征显著，当前处于上升趋势中的缩量回调支撑位，量价配合健康，具备进一步向上拓展空间的潜力。",
+  "code": "603045"
+}

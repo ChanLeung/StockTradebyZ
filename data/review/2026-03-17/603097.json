@@ -1,0 +1,18 @@
+{
+  "trend_reasoning": "均线系统呈现清晰的多头排列，短期均线在长期均线上方运行，且整体斜率向上，趋势结构健康，属于典型的上升趋势。",
+  "position_reasoning": "价格处于长期上涨后的高位震荡区域，近期创出新高后出现回落，上方空间已被大幅压缩，性价比处于劣势。",
+  "volume_reasoning": "近期上涨阶段量能温和，但高位回落过程中成交量并未出现明显的萎缩，反而伴随阴线出现，量价配合显示出一定的抛压迹象。",
+  "abnormal_move_reasoning": "前期存在明显的建仓与拉升痕迹，但目前累计涨幅已较大，且近期高位出现放量阴线，主力有获利了结的嫌疑，不属于爆发前夕。",
+  "signal_reasoning": "价格在高位出现滞涨并伴随回调，量能结构显示出获利盘出逃的风险，短期内面临趋势衰竭或深度调整的可能。",
+  "scores": {
+    "trend_structure": 4,
+    "price_position": 2,
+    "volume_behavior": 3,
+    "previous_abnormal_move": 2
+  },
+  "total_score": 2.8,
+  "signal_type": "distribution_risk",
+  "verdict": "FAIL",
+  "comment": "该股处于长期上升趋势末端，高位放量阴线显示抛压增大，历史涨幅已高，当前面临较大的获利回吐与出货风险。",
+  "code": "603097"
+}

@@ -1,0 +1,18 @@
+{
+  "trend_reasoning": "均线呈现明显的多头排列，短期均线在长期均线上方运行且整体向上，趋势结构健康，属于典型的上升趋势延续阶段。",
+  "position_reasoning": "股价处于阶段性高位区域，近期创出新高后出现回调，距离前期低点已有较大涨幅，上方空间相对有限，性价比处于中等偏下水平。",
+  "volume_reasoning": "上涨阶段伴随温和放量，近期高位出现放量阴线，显示出一定的抛压，量价配合尚可但已非最佳启动点，需警惕回调力度。",
+  "abnormal_move_reasoning": "前期在底部区域有明显的放量建仓痕迹，随后股价稳步推升，目前累计涨幅已接近50%，主力资金已有获利空间，存在获利回吐压力。",
+  "signal_reasoning": "当前处于上升趋势中的回调阶段，虽然趋势未坏，但高位放量阴线暗示短期存在震荡整理或出货风险，不宜盲目追高。",
+  "scores": {
+    "trend_structure": 4,
+    "price_position": 2,
+    "volume_behavior": 3,
+    "previous_abnormal_move": 3
+  },
+  "total_score": 3.0,
+  "signal_type": "distribution_risk",
+  "verdict": "FAIL",
+  "comment": "该股处于多头趋势中段，前期底部建仓明显，但目前股价已处高位且伴随放量阴线，短期面临获利盘抛压，追高风险较大，建议观望等待回调企稳。",
+  "code": "002937"
+}

@@ -1,0 +1,18 @@
+{
+  "trend_reasoning": "短期均线已开始拐头向下，且价格多次反抽均线受阻，多头趋势已出现明显的衰竭迹象，结构转弱。",
+  "position_reasoning": "股价处于前期大幅拉升后的高位回落阶段，目前在均线下方运行，上方套牢盘压力沉重，缺乏进一步上涨的支撑。",
+  "volume_reasoning": "近期上涨阶段成交量明显萎缩，而下跌阶段伴随零星放量，量价配合呈现典型的出货后缩量阴跌特征。",
+  "abnormal_move_reasoning": "前期主升浪涨幅已远超100%，且高位出现过明显的放量滞涨与阴线出货痕迹，主力资金已完成获利了结。",
+  "signal_reasoning": "综合趋势转弱、高位出货特征及量能萎缩，当前处于明显的获利盘派发后的调整期，风险大于机会。",
+  "scores": {
+    "trend_structure": 2,
+    "price_position": 1,
+    "volume_behavior": 2,
+    "previous_abnormal_move": 1
+  },
+  "total_score": 1.5,
+  "signal_type": "distribution_risk",
+  "verdict": "FAIL",
+  "comment": "该股已完成主升浪，当前均线系统走坏且高位放量出货特征明显，上方套牢压力巨大，处于明显的派发风险期。",
+  "code": "002716"
+}
