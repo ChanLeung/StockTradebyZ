@@ -7,6 +7,7 @@ __pycache__/
 
 # Project folders
 .vscode/
+.worktrees/
 data/
 
 # Virtual environments
