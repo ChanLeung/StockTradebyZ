@@ -7,7 +7,7 @@ __pycache__/
 
 # Project folders
 .vscode/
-#data/
+data/
 
 # Virtual environments
 .venv/
