@@ -1,6 +1,7 @@
 numba==0.61.2
 numpy>=1.24,<2.3
 pandas>=1.4,<3
+Pillow>=11,<12
 plotly==6.5.0
 protobuf>=3.20,<7
 PyYAML==6.0.3
