@@ -1,4 +1,5 @@
 from pipeline.schemas import Candidate
+from trading.portfolio import build_target_positions
 from trading.schemas import PortfolioState, Position
 
 
@@ -40,3 +41,23 @@ def test_position_to_dict_contains_entry_fields():
 
     assert payload["code"] == "600000"
     assert payload["entry_price"] == 10.8
+
+
+def test_select_top_candidates_assigns_equal_weights():
+    candidates = [
+        Candidate(
+            code=f"{600000 + idx}",
+            date="2026-01-06",
+            strategy="b1",
+            close=10.0 + idx,
+            turnover_n=1000.0 + idx,
+            buy_review_score=5.0 - idx * 0.1,
+        )
+        for idx in range(12)
+    ]
+
+    positions = build_target_positions(candidates, as_of_date="2026-01-07", max_positions=10)
+
+    assert len(positions) == 10
+    assert {position.weight for position in positions} == {0.1}
+    assert positions[0].code == "600000"
