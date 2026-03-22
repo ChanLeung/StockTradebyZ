@@ -45,6 +45,10 @@
 - [data](data)：运行数据与结果
 - [run_all.py](run_all.py)：全流程一键入口
 
+补充说明：
+
+- [config/reference_data.yaml](config/reference_data.yaml)：动态基准指数优先级和风险代理数据配置
+
 ---
 
 ## 3. 快速开始（一键跑通）

@@ -1,0 +1,6 @@
+benchmark_priority:
+  - HS300
+  - CSI500
+  - CSI1000
+  - CSI2000
+  - ALLA
