@@ -36,6 +36,16 @@ class TradeFill:
 
 
 @dataclass
+class RiskState:
+    mode: str
+    allow_new_entries: bool
+    max_total_exposure: float
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass
 class PortfolioState:
     cash: float
     positions: list[Position] = field(default_factory=list)
