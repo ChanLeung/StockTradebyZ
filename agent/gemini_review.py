@@ -29,7 +29,12 @@ from google import genai
 from google.genai import types
 import yaml
 
-from base_reviewer import BaseReviewer
+try:
+    from agent.base_reviewer import BaseReviewer
+    from agent.buy_review import BuyReviewer
+except ImportError:  # 兼容直接运行 python agent/gemini_review.py
+    from base_reviewer import BaseReviewer
+    from buy_review import BuyReviewer
 
 # ────────────────────────────────────────────────
 # 配置加载
@@ -42,7 +47,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "candidates": "data/candidates/candidates_latest.json",
     "kline_dir": "data/kline",
     "output_dir": "data/review",
-    "prompt_path": "agent/prompt.md",
+    "prompt_path": str(BuyReviewer.prompt_path.relative_to(_ROOT)),
     # Gemini 模型参数
     # "model": "gemini-3.1-pro-preview",
     "model": "gemini-3.1-flash-lite-preview",
@@ -77,6 +82,8 @@ def load_config(config_path: Path | None = None) -> dict[str, Any]:
 
 
 class GeminiReviewer(BaseReviewer):
+    review_type = BuyReviewer.review_type
+
     def __init__(self, config):
         super().__init__(config)
 

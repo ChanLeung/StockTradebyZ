@@ -11,7 +11,7 @@ kline_dir: data/kline
 output_dir: data/review
 
 # 提示词文件
-prompt_path: agent/prompt.md
+prompt_path: agent/prompts/buy_prompt.md
 
 # Gemini 模型名称
 #model: gemini-3.1-pro-preview
