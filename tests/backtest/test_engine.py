@@ -160,9 +160,11 @@ def test_backtest_cli_writes_signal_sheet_brief_markdown(tmp_path):
 
     content = brief_path.read_text(encoding="utf-8")
     assert "# 盘前执行卡片" in content
+    assert "## 一句话摘要" in content
     assert "## 卖出优先" in content
     assert "## 持仓观察" in content
     assert "## 新开仓" in content
+    assert "## Top 5 重点动作" in content
 
 
 def test_engine_applies_sell_decisions_on_next_open():

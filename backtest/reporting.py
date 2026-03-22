@@ -434,7 +434,7 @@ def build_signal_sheet_brief_markdown(signal_sheet: dict) -> str:
     else:
         for index, item in enumerate(top_actions, start=1):
             lines.append(
-                f"{index}. [{item['title']}] `{item['code']}` {item['reasoning']}"
+                f"{index}. [{item['label']}] [{item['title']}] `{item['code']}` {item['reasoning']}"
             )
     lines.append("")
 
@@ -483,6 +483,7 @@ def _build_brief_top_actions(group_lookup: dict[str, list[dict]], limit: int) ->
             ordered_items.append(
                 {
                     "title": title_map.get(category, category),
+                    "label": _brief_execution_label(category),
                     "code": item.get("code"),
                     "reasoning": item.get("reasoning") or "无说明。",
                     "priority_score": int(item.get("priority_score", 0) or 0),
@@ -491,6 +492,14 @@ def _build_brief_top_actions(group_lookup: dict[str, list[dict]], limit: int) ->
 
     ordered_items.sort(key=lambda item: (-item["priority_score"], str(item["code"])))
     return ordered_items[:limit]
+
+
+def _brief_execution_label(category: str) -> str:
+    return {
+        "sell_review": "立即处理",
+        "hold_watch": "开盘观察",
+        "new_buy": "可延后复核",
+    }.get(category, "开盘观察")
 
 
 def build_signal_sheet_action_rows(signal_sheet: dict) -> list[dict]:

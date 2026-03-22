@@ -299,8 +299,8 @@ def test_build_signal_sheet_brief_markdown_renders_three_action_sections():
     assert "## 一句话摘要" in markdown
     assert "当前风险模式 risk_off；当前/目标仓位 1.5 -> 1.0；卖出优先 1 项，持仓观察 1 项，新开仓 0 项。" in markdown
     assert "## Top 5 重点动作" in markdown
-    assert "1. [卖出优先] `000001` 趋势破坏。" in markdown
-    assert "2. [持仓观察] `000002` 波动加大，继续观察。" in markdown
+    assert "1. [立即处理] [卖出优先] `000001` 趋势破坏。" in markdown
+    assert "2. [开盘观察] [持仓观察] `000002` 波动加大，继续观察。" in markdown
 
 
 def test_build_signal_sheet_brief_markdown_limits_top_actions_to_five_items():
@@ -346,9 +346,9 @@ def test_build_signal_sheet_brief_markdown_limits_top_actions_to_five_items():
     markdown = build_signal_sheet_brief_markdown(signal_sheet)
     top_section = markdown.split("## Top 5 重点动作\n", maxsplit=1)[1].split("\n## 卖出优先（2）", maxsplit=1)[0]
 
-    assert "1. [卖出优先] `000001` 卖出1" in top_section
-    assert "2. [卖出优先] `000002` 卖出2" in top_section
-    assert "3. [持仓观察] `000003` 观察1" in top_section
-    assert "4. [持仓观察] `000004` 观察2" in top_section
-    assert "5. [新开仓] `000005` 买入1" in top_section
+    assert "1. [立即处理] [卖出优先] `000001` 卖出1" in top_section
+    assert "2. [立即处理] [卖出优先] `000002` 卖出2" in top_section
+    assert "3. [开盘观察] [持仓观察] `000003` 观察1" in top_section
+    assert "4. [开盘观察] [持仓观察] `000004` 观察2" in top_section
+    assert "5. [可延后复核] [新开仓] `000005` 买入1" in top_section
     assert "`000006` 买入2" not in top_section
