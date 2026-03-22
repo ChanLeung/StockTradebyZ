@@ -224,6 +224,7 @@ def _build_focus_review_list(
                     action=holding.get("action"),
                     risk_flags=holding.get("risk_flags", []),
                 ),
+                "category": _focus_category(holding.get("action")),
             }
         )
         seen_codes.add(code)
@@ -242,6 +243,7 @@ def _build_focus_review_list(
                     action="sell",
                     risk_flags=order.get("risk_flags", []),
                 ),
+                "category": _focus_category("sell"),
             }
         )
         seen_codes.add(code)
@@ -260,6 +262,7 @@ def _build_focus_review_list(
                     action="buy",
                     risk_flags=[],
                 ),
+                "category": _focus_category("buy"),
             }
         )
         seen_codes.add(code)
@@ -286,6 +289,14 @@ def _compute_focus_priority_score(action: str | None, risk_flags: list[str] | No
     return int(action_base.get(str(action or "hold"), 0) + len(risk_flags or []) * 10)
 
 
+def _focus_category(action: str | None) -> str:
+    return {
+        "sell": "sell_review",
+        "hold": "hold_watch",
+        "buy": "new_buy",
+    }.get(str(action or "hold"), "other")
+
+
 def write_signal_sheet_csv(path: str | Path, signal_sheet: dict) -> None:
     csv_path = Path(path)
     csv_path.parent.mkdir(parents=True, exist_ok=True)
@@ -296,6 +307,7 @@ def write_signal_sheet_csv(path: str | Path, signal_sheet: dict) -> None:
         "code",
         "action",
         "instruction",
+        "priority_score",
         "current_weight",
         "target_weight",
         "holding_days",
@@ -324,6 +336,10 @@ def build_signal_sheet_action_rows(signal_sheet: dict) -> list[dict]:
                 "code": order.get("code"),
                 "action": "sell",
                 "instruction": order.get("instruction"),
+                "priority_score": _compute_focus_priority_score(
+                    action="sell",
+                    risk_flags=order.get("risk_flags", []),
+                ),
                 "current_weight": order.get("current_weight"),
                 "target_weight": order.get("target_weight"),
                 "holding_days": order.get("holding_days"),
@@ -341,6 +357,10 @@ def build_signal_sheet_action_rows(signal_sheet: dict) -> list[dict]:
                 "code": order.get("code"),
                 "action": "buy",
                 "instruction": order.get("instruction"),
+                "priority_score": _compute_focus_priority_score(
+                    action="buy",
+                    risk_flags=order.get("risk_flags", []),
+                ),
                 "current_weight": order.get("current_weight"),
                 "target_weight": order.get("target_weight"),
                 "holding_days": order.get("holding_days"),

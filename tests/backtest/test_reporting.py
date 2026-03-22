@@ -104,12 +104,15 @@ def test_build_signal_sheet_splits_buy_and_sell_actions():
     assert sheet["focus_review_list"][0]["action"] == "sell"
     assert sheet["focus_review_list"][0]["reasoning"] == "趋势破坏。"
     assert sheet["focus_review_list"][0]["priority_score"] == 310
+    assert sheet["focus_review_list"][0]["category"] == "sell_review"
     assert sheet["focus_review_list"][1]["code"] == "000002"
     assert sheet["focus_review_list"][1]["action"] == "hold"
     assert sheet["focus_review_list"][1]["priority_score"] == 210
+    assert sheet["focus_review_list"][1]["category"] == "hold_watch"
     assert sheet["focus_review_list"][2]["code"] == "600000"
     assert sheet["focus_review_list"][2]["action"] == "buy"
     assert sheet["focus_review_list"][2]["priority_score"] == 100
+    assert sheet["focus_review_list"][2]["category"] == "new_buy"
 
 
 def test_summarize_backtest_counts_days_trades_and_benchmark():
