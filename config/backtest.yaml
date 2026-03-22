@@ -11,3 +11,10 @@ costs:
 risk:
   risk_off_exposure: 0.5
   manual_switch: false
+
+brief:
+  top_actions_limit: 5
+  execution_labels:
+    sell_review: 立即处理
+    hold_watch: 开盘观察
+    new_buy: 可延后复核

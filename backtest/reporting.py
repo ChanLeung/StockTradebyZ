@@ -401,7 +401,12 @@ def write_signal_sheet_review_markdown(path: str | Path, signal_sheet: dict) -> 
     markdown_path.write_text(build_signal_sheet_review_markdown(signal_sheet), encoding="utf-8")
 
 
-def build_signal_sheet_brief_markdown(signal_sheet: dict) -> str:
+def build_signal_sheet_brief_markdown(
+    signal_sheet: dict,
+    *,
+    execution_labels: dict[str, str] | None = None,
+    top_actions_limit: int = 5,
+) -> str:
     group_lookup = {
         str(group.get("category")): list(group.get("items", []))
         for group in signal_sheet.get("focus_review_groups", [])
@@ -427,8 +432,12 @@ def build_signal_sheet_brief_markdown(signal_sheet: dict) -> str:
         signal_sheet.get("risk_brief") or "暂无风险摘要。",
         "",
     ]
-    top_actions = _build_brief_top_actions(group_lookup, limit=5)
-    lines.append("## Top 5 重点动作")
+    top_actions = _build_brief_top_actions(
+        group_lookup,
+        limit=top_actions_limit,
+        execution_labels=execution_labels,
+    )
+    lines.append(f"## Top {top_actions_limit} 重点动作")
     if not top_actions:
         lines.append("- 无")
     else:
@@ -453,10 +462,23 @@ def build_signal_sheet_brief_markdown(signal_sheet: dict) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def write_signal_sheet_brief_markdown(path: str | Path, signal_sheet: dict) -> None:
+def write_signal_sheet_brief_markdown(
+    path: str | Path,
+    signal_sheet: dict,
+    *,
+    execution_labels: dict[str, str] | None = None,
+    top_actions_limit: int = 5,
+) -> None:
     markdown_path = Path(path)
     markdown_path.parent.mkdir(parents=True, exist_ok=True)
-    markdown_path.write_text(build_signal_sheet_brief_markdown(signal_sheet), encoding="utf-8")
+    markdown_path.write_text(
+        build_signal_sheet_brief_markdown(
+            signal_sheet,
+            execution_labels=execution_labels,
+            top_actions_limit=top_actions_limit,
+        ),
+        encoding="utf-8",
+    )
 
 
 def _build_brief_summary_line(signal_sheet: dict, group_lookup: dict[str, list[dict]]) -> str:
@@ -471,7 +493,12 @@ def _build_brief_summary_line(signal_sheet: dict, group_lookup: dict[str, list[d
     )
 
 
-def _build_brief_top_actions(group_lookup: dict[str, list[dict]], limit: int) -> list[dict]:
+def _build_brief_top_actions(
+    group_lookup: dict[str, list[dict]],
+    *,
+    limit: int,
+    execution_labels: dict[str, str] | None = None,
+) -> list[dict]:
     title_map = {
         "sell_review": "卖出优先",
         "hold_watch": "持仓观察",
@@ -483,7 +510,7 @@ def _build_brief_top_actions(group_lookup: dict[str, list[dict]], limit: int) ->
             ordered_items.append(
                 {
                     "title": title_map.get(category, category),
-                    "label": _brief_execution_label(category),
+                    "label": _brief_execution_label(category, execution_labels=execution_labels),
                     "code": item.get("code"),
                     "reasoning": item.get("reasoning") or "无说明。",
                     "priority_score": int(item.get("priority_score", 0) or 0),
@@ -494,12 +521,14 @@ def _build_brief_top_actions(group_lookup: dict[str, list[dict]], limit: int) ->
     return ordered_items[:limit]
 
 
-def _brief_execution_label(category: str) -> str:
-    return {
+def _brief_execution_label(category: str, *, execution_labels: dict[str, str] | None = None) -> str:
+    default_labels = {
         "sell_review": "立即处理",
         "hold_watch": "开盘观察",
         "new_buy": "可延后复核",
-    }.get(category, "开盘观察")
+    }
+    merged_labels = {**default_labels, **(execution_labels or {})}
+    return merged_labels.get(category, "开盘观察")
 
 
 def build_signal_sheet_action_rows(signal_sheet: dict) -> list[dict]:

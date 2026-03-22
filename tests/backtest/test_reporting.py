@@ -352,3 +352,54 @@ def test_build_signal_sheet_brief_markdown_limits_top_actions_to_five_items():
     assert "4. [开盘观察] [持仓观察] `000004` 观察2" in top_section
     assert "5. [可延后复核] [新开仓] `000005` 买入1" in top_section
     assert "`000006` 买入2" not in top_section
+
+
+def test_build_signal_sheet_brief_markdown_supports_custom_execution_labels():
+    signal_sheet = {
+        "signal_date": "2026-01-07",
+        "trade_date": "2026-01-08",
+        "risk_state": {"mode": "normal", "active_risk_tags": []},
+        "risk_brief": "当前风险状态：normal；未触发额外风险标签。",
+        "exposure_summary": {
+            "current_total_weight": 0.5,
+            "target_total_weight": 1.0,
+            "planned_buy_weight": 0.5,
+            "planned_sell_weight": 0.0,
+        },
+        "focus_review_groups": [
+            {
+                "category": "sell_review",
+                "title": "卖出复核",
+                "items": [
+                    {"code": "000001", "action": "sell", "reasoning": "卖出1", "risk_flags": [], "priority_score": 320, "category": "sell_review"},
+                ],
+            },
+            {
+                "category": "hold_watch",
+                "title": "持仓观察",
+                "items": [
+                    {"code": "000003", "action": "hold", "reasoning": "观察1", "risk_flags": [], "priority_score": 210, "category": "hold_watch"},
+                ],
+            },
+            {
+                "category": "new_buy",
+                "title": "新开仓",
+                "items": [
+                    {"code": "000005", "action": "buy", "reasoning": "买入1", "risk_flags": [], "priority_score": 110, "category": "new_buy"},
+                ],
+            },
+        ],
+    }
+
+    markdown = build_signal_sheet_brief_markdown(
+        signal_sheet,
+        execution_labels={
+            "sell_review": "立刻执行",
+            "hold_watch": "盘中观察",
+            "new_buy": "尾盘再看",
+        },
+    )
+
+    assert "1. [立刻执行] [卖出优先] `000001` 卖出1" in markdown
+    assert "2. [盘中观察] [持仓观察] `000003` 观察1" in markdown
+    assert "3. [尾盘再看] [新开仓] `000005` 买入1" in markdown

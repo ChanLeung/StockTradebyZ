@@ -350,6 +350,7 @@ def main(argv: list[str] | None = None) -> None:
     signal_brief_path = output_dir / "signal_sheet_brief.md"
     snapshots_path = output_dir / "daily_snapshots.json"
     holdings_path = output_dir / "holdings_snapshot.json"
+    brief_config = config.get("brief", {})
     summary_path.write_text(
         json.dumps(summary, ensure_ascii=False, indent=2),
         encoding="utf-8",
@@ -360,7 +361,12 @@ def main(argv: list[str] | None = None) -> None:
     )
     write_signal_sheet_csv(signal_csv_path, signal_sheet)
     write_signal_sheet_review_markdown(signal_review_path, signal_sheet)
-    write_signal_sheet_brief_markdown(signal_brief_path, signal_sheet)
+    write_signal_sheet_brief_markdown(
+        signal_brief_path,
+        signal_sheet,
+        execution_labels=brief_config.get("execution_labels"),
+        top_actions_limit=int(brief_config.get("top_actions_limit", 5) or 5),
+    )
     snapshots_path.write_text(
         json.dumps([snapshot.to_dict() for snapshot in result.daily_snapshots], ensure_ascii=False, indent=2),
         encoding="utf-8",

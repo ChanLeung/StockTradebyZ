@@ -241,6 +241,8 @@ python run_all.py backtest --mode quant_only --start 2026-01-01 --end 2026-01-31
 - `costs.commission_bps`：双边佣金
 - `costs.stamp_duty_bps`：卖出印花税
 - `costs.slippage_bps`：开盘成交滑点
+- `brief.top_actions_limit`：简版执行卡片里 Top 动作条数
+- `brief.execution_labels.*`：简版执行卡片里 `Top 动作` 的执行优先级标签映射
 
 现在的行为是：
 

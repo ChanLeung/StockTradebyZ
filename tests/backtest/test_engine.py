@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from backtest.cli import build_parser, load_local_backtest_bundle, main as cli_main
+from backtest.cli import build_parser, load_backtest_config, load_local_backtest_bundle, main as cli_main
 from backtest.engine import run_backtest
 from pipeline.schemas import Candidate
 from trading.holdings_io import load_holdings_snapshot
@@ -165,6 +165,25 @@ def test_backtest_cli_writes_signal_sheet_brief_markdown(tmp_path):
     assert "## 持仓观察" in content
     assert "## 新开仓" in content
     assert "## Top 5 重点动作" in content
+
+
+def test_load_backtest_config_reads_brief_execution_labels(tmp_path):
+    config_path = tmp_path / "backtest.yaml"
+    config_path.write_text(
+        """brief:
+  execution_labels:
+    sell_review: 立刻执行
+    hold_watch: 盘中观察
+    new_buy: 尾盘再看
+""",
+        encoding="utf-8",
+    )
+
+    config = load_backtest_config(config_path)
+
+    assert config["brief"]["execution_labels"]["sell_review"] == "立刻执行"
+    assert config["brief"]["execution_labels"]["hold_watch"] == "盘中观察"
+    assert config["brief"]["execution_labels"]["new_buy"] == "尾盘再看"
 
 
 def test_engine_applies_sell_decisions_on_next_open():
