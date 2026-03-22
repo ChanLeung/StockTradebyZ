@@ -13,6 +13,7 @@ run_all.py
     python run_all.py
     python run_all.py --skip-fetch     # 跳过行情下载（已有最新数据时）
     python run_all.py --start-from 3   # 从第 3 步开始（跳过前两步）
+    python run_all.py backtest --mode quant_only
 """
 from __future__ import annotations
 
@@ -90,6 +91,13 @@ def _print_recommendations() -> None:
 
 
 def main() -> None:
+    if len(sys.argv) > 1 and sys.argv[1] == "backtest":
+        _run(
+            "回测（backtest.cli）",
+            [PYTHON, "-m", "backtest.cli", *sys.argv[2:]],
+        )
+        return
+
     parser = argparse.ArgumentParser(description="AgentTrader 全流程自动运行脚本")
     parser.add_argument(
         "--skip-fetch", action="store_true",

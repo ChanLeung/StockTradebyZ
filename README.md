@@ -48,7 +48,9 @@
 补充说明：
 
 - [config/reference_data.yaml](config/reference_data.yaml)：动态基准指数优先级和风险代理数据配置
+- [config/backtest.yaml](config/backtest.yaml)：回测参数、成本和输出目录配置
 - `python -m pipeline.fetch_reference_data`：参考数据入口（基准指数与风险代理）
+- `python -m backtest.cli --mode quant_only`：研究闭环回测入口
 
 ---
 
@@ -192,6 +194,24 @@ python agent/gemini_review.py --config config/gemini_review.yaml
 
 - data/review/日期/代码.json
 - data/review/日期/suggestion.json
+
+### 步骤 5：研究闭环回测
+
+~~~bash
+python -m backtest.cli --config config/backtest.yaml --mode quant_only --start 2026-01-01 --end 2026-01-31
+python -m backtest.cli --config config/backtest.yaml --mode quant_plus_ai --start 2026-03-01 --end 2026-03-10
+~~~
+
+也可以通过统一入口转发：
+
+~~~bash
+python run_all.py backtest --mode quant_only --start 2026-01-01 --end 2026-01-31
+~~~
+
+当前回测 CLI 默认生成一份合成研究数据，用来验证“收盘出信号、次日开盘成交、输出报表与信号单”这条主链路是否通畅。输出目录默认是 `data/backtest/<mode>/<start>_<end>/`，其中包含：
+
+- `summary.json`：快照数、成交数、平均持仓数、动态基准累计收益等摘要
+- `signal_sheet.json`：拆分后的买入/卖出清单
 
 ---
 

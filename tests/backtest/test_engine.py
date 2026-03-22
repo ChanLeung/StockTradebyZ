@@ -1,5 +1,6 @@
 import pandas as pd
 
+from backtest.cli import build_parser
 from backtest.engine import run_backtest
 from pipeline.schemas import Candidate
 
@@ -34,3 +35,11 @@ def test_engine_runs_close_to_next_open_cycle():
     assert len(result.daily_snapshots) == 1
     assert len(result.trades) == 1
     assert result.daily_snapshots[0].date == "2026-01-07"
+
+
+def test_backtest_cli_parses_quant_plus_ai_mode():
+    parser = build_parser()
+
+    args = parser.parse_args(["--mode", "quant_plus_ai"])
+
+    assert args.mode == "quant_plus_ai"

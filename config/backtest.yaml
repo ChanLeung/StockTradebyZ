@@ -1,0 +1,12 @@
+max_positions: 10
+hold_limit_days: 15
+output_dir: data/backtest
+
+costs:
+  commission_bps: 3
+  stamp_duty_bps: 10
+  slippage_bps: 2
+
+risk:
+  risk_off_exposure: 0.5
+  manual_switch: false
