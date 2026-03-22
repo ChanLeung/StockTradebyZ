@@ -46,6 +46,17 @@ class RiskState:
 
 
 @dataclass
+class BacktestDailySnapshot:
+    date: str
+    cash: float
+    position_count: int
+    benchmark_return: float
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass
 class PortfolioState:
     cash: float
     positions: list[Position] = field(default_factory=list)
