@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 
 from trading.benchmark import build_position_benchmark_weights, compute_dynamic_benchmark_return
 from trading.orders import compute_trade_cash_effect, simulate_open_fill
-from trading.portfolio import apply_sell_decisions, build_target_positions
+from trading.portfolio import apply_risk_budget, apply_sell_decisions, build_target_positions
 from trading.risk import evaluate_risk_state
 from trading.schemas import BacktestDailySnapshot, Order, Position, TradeFill
 
@@ -60,6 +60,30 @@ def run_backtest(config: dict, data_bundle: dict) -> BacktestResult:
         risk_state = evaluate_risk_state(
             data_bundle.get("risk_signals", {}).get(signal_date, {})
         )
+        kept_positions, trimmed_positions = apply_risk_budget(
+            current_positions,
+            max_total_exposure=risk_state.max_total_exposure,
+            max_positions=max_positions,
+        )
+        current_positions = list(kept_positions)
+        for position in trimmed_positions:
+            if position.code not in open_prices:
+                current_positions.append(position)
+                continue
+            order = Order(code=position.code, side="sell", quantity=position.quantity)
+            pending_orders.append(order)
+            fill = simulate_open_fill(
+                order,
+                open_price=open_prices[position.code],
+                high=open_prices[position.code],
+                low=open_prices[position.code],
+            )
+            if fill is not None:
+                result.trades.append(fill)
+                cash += compute_trade_cash_effect(fill, cost_config)
+            else:
+                current_positions.append(position)
+
         existing_codes = {position.code for position in current_positions}
         available_slots = max(max_positions - len(current_positions), 0)
         buy_targets: list[Position] = []

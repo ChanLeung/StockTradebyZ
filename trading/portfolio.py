@@ -2,6 +2,18 @@ from pipeline.schemas import Candidate
 from trading.schemas import Position
 
 
+def apply_risk_budget(
+    positions: list[Position],
+    *,
+    max_total_exposure: float,
+    max_positions: int,
+) -> tuple[list[Position], list[Position]]:
+    allowed_positions = max(int(max_positions * max_total_exposure), 0)
+    if len(positions) <= allowed_positions:
+        return positions, []
+    return positions[:allowed_positions], positions[allowed_positions:]
+
+
 def apply_sell_decisions(
     positions: list[Position],
     sell_decisions: dict[str, str],

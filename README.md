@@ -237,6 +237,7 @@ python run_all.py backtest --mode quant_only --start 2026-01-01 --end 2026-01-31
 - 如果存在 `data/review_sell/<pick_date>/<code>.json`，回测会把其中的 `hold/sell` 决策注入卖出路径
 - 如果存在 `data/reference/index_membership.json`，股票会按 [config/reference_data.yaml](config/reference_data.yaml) 的优先级映射到主基准指数
 - 如果存在 `data/reference/risk_proxies/*.csv`，回测会按 [config/reference_data.yaml](config/reference_data.yaml) 里的阈值生成 `macro_risk`
+- 当系统进入 `risk_off` 时，回测现在不仅会禁止开新仓，还会按最大总暴露比例主动裁减已有持仓
 - 如果本地没有可用的历史候选归档，CLI 才会回退到内置 demo 数据
 - 如果本地没有准备基准指数 CSV，动态基准会先用 `ALLA=0` 的兜底收益跑通主链路
 

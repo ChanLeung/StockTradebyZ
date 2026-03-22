@@ -121,6 +121,7 @@ def load_local_backtest_bundle(
     stock_to_index: dict[str, str] = {}
     sell_decisions: dict[str, dict[str, str]] = {}
     trade_dates: set[str] = set()
+    tracked_codes: set[str] = set()
     reference_config = load_reference_config(root / "config" / "reference_data.yaml")
     benchmark_priority = reference_config.get(
         "benchmark_priority",
@@ -138,15 +139,19 @@ def load_local_backtest_bundle(
         if trade_date is None:
             continue
 
+        tracked_codes.update(candidate.code for candidate in run.candidates)
         open_map: dict[str, float] = {}
         enriched_candidates: list[Candidate] = []
         date_sell_decisions: dict[str, str] = {}
+        for tracked_code in sorted(tracked_codes):
+            price_row = _find_price_row(tracked_code, trade_date, raw_dir, raw_cache)
+            if price_row is not None:
+                open_map[tracked_code] = float(price_row["open"])
+
         for candidate in run.candidates:
-            price_row = _find_price_row(candidate.code, trade_date, raw_dir, raw_cache)
-            if price_row is None:
+            if candidate.code not in open_map:
                 continue
 
-            open_map[candidate.code] = float(price_row["open"])
             enriched = _enrich_candidate(candidate, mode=mode, review_dir=review_dir / pick_date)
             enriched_candidates.append(enriched)
             stock_to_index[candidate.code] = pick_primary_index(

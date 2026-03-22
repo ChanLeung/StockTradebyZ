@@ -1,5 +1,5 @@
 from pipeline.schemas import Candidate
-from trading.portfolio import apply_sell_decisions, build_target_positions
+from trading.portfolio import apply_risk_budget, apply_sell_decisions, build_target_positions
 from trading.schemas import PortfolioState, Position
 
 
@@ -75,3 +75,15 @@ def test_apply_sell_decisions_filters_out_sell_positions():
     )
 
     assert [position.code for position in remaining] == ["600000"]
+
+
+def test_apply_risk_budget_trims_positions_by_exposure():
+    positions = [
+        Position(code=f"{600000 + idx}", entry_date="2026-01-07", entry_price=10.0 + idx, weight=0.25)
+        for idx in range(4)
+    ]
+
+    kept, trimmed = apply_risk_budget(positions, max_total_exposure=0.5, max_positions=4)
+
+    assert [position.code for position in kept] == ["600000", "600001"]
+    assert [position.code for position in trimmed] == ["600002", "600003"]
