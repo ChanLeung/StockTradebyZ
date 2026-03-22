@@ -401,6 +401,51 @@ def write_signal_sheet_review_markdown(path: str | Path, signal_sheet: dict) -> 
     markdown_path.write_text(build_signal_sheet_review_markdown(signal_sheet), encoding="utf-8")
 
 
+def build_signal_sheet_brief_markdown(signal_sheet: dict) -> str:
+    group_lookup = {
+        str(group.get("category")): list(group.get("items", []))
+        for group in signal_sheet.get("focus_review_groups", [])
+    }
+    section_titles = [
+        ("sell_review", "卖出优先"),
+        ("hold_watch", "持仓观察"),
+        ("new_buy", "新开仓"),
+    ]
+    exposure_summary = signal_sheet.get("exposure_summary", {})
+    lines = [
+        "# 盘前执行卡片",
+        "",
+        f"- 信号日期：{signal_sheet.get('signal_date') or '-'}",
+        f"- 执行日期：{signal_sheet.get('trade_date') or '-'}",
+        f"- 风险模式：{signal_sheet.get('risk_state', {}).get('mode') or '-'}",
+        f"- 当前/目标仓位：{exposure_summary.get('current_total_weight', 0.0)} -> {exposure_summary.get('target_total_weight', 0.0)}",
+        "",
+        "## 风险提示",
+        signal_sheet.get("risk_brief") or "暂无风险摘要。",
+        "",
+    ]
+
+    for category, title in section_titles:
+        items = group_lookup.get(category, [])
+        lines.append(f"## {title}（{len(items)}）")
+        if not items:
+            lines.append("- 无")
+            lines.append("")
+            continue
+        for item in items:
+            reason = item.get("reasoning") or "无说明。"
+            lines.append(f"- `{item.get('code')}` {reason}")
+        lines.append("")
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def write_signal_sheet_brief_markdown(path: str | Path, signal_sheet: dict) -> None:
+    markdown_path = Path(path)
+    markdown_path.parent.mkdir(parents=True, exist_ok=True)
+    markdown_path.write_text(build_signal_sheet_brief_markdown(signal_sheet), encoding="utf-8")
+
+
 def build_signal_sheet_action_rows(signal_sheet: dict) -> list[dict]:
     rows: list[dict] = []
     signal_date = signal_sheet.get("signal_date")

@@ -1,7 +1,12 @@
 import pytest
 
 from backtest.engine import BacktestResult
-from backtest.reporting import build_signal_sheet, build_signal_sheet_review_markdown, summarize_backtest
+from backtest.reporting import (
+    build_signal_sheet,
+    build_signal_sheet_brief_markdown,
+    build_signal_sheet_review_markdown,
+    summarize_backtest,
+)
 from trading.schemas import BacktestDailySnapshot, Order, PortfolioState, Position, RiskState, TradeFill
 
 
@@ -231,3 +236,63 @@ def test_build_signal_sheet_review_markdown_renders_grouped_sections():
     assert "- `000001` `sell` 优先级 `310`" in markdown
     assert "- `000002` `hold` 优先级 `210`" in markdown
     assert "风险标签：trend_break" in markdown
+
+
+def test_build_signal_sheet_brief_markdown_renders_three_action_sections():
+    signal_sheet = {
+        "signal_date": "2026-01-07",
+        "trade_date": "2026-01-08",
+        "risk_state": {
+            "mode": "risk_off",
+            "active_risk_tags": ["macro_risk"],
+        },
+        "risk_brief": "当前风险状态：risk_off；激活标签：macro_risk。",
+        "exposure_summary": {
+            "current_total_weight": 1.5,
+            "target_total_weight": 1.0,
+            "planned_buy_weight": 0.0,
+            "planned_sell_weight": 0.5,
+        },
+        "focus_review_groups": [
+            {
+                "category": "sell_review",
+                "title": "卖出复核",
+                "items": [
+                    {
+                        "code": "000001",
+                        "action": "sell",
+                        "reasoning": "趋势破坏。",
+                        "risk_flags": ["trend_break"],
+                        "priority_score": 310,
+                        "category": "sell_review",
+                    }
+                ],
+            },
+            {
+                "category": "hold_watch",
+                "title": "持仓观察",
+                "items": [
+                    {
+                        "code": "000002",
+                        "action": "hold",
+                        "reasoning": "波动加大，继续观察。",
+                        "risk_flags": ["volatility"],
+                        "priority_score": 210,
+                        "category": "hold_watch",
+                    }
+                ],
+            },
+        ],
+    }
+
+    markdown = build_signal_sheet_brief_markdown(signal_sheet)
+
+    assert "# 盘前执行卡片" in markdown
+    assert "- 风险模式：risk_off" in markdown
+    assert "- 当前/目标仓位：1.5 -> 1.0" in markdown
+    assert "## 卖出优先（1）" in markdown
+    assert "## 持仓观察（1）" in markdown
+    assert "## 新开仓（0）" in markdown
+    assert "- `000001` 趋势破坏。" in markdown
+    assert "- `000002` 波动加大，继续观察。" in markdown
+    assert "- 无" in markdown

@@ -13,6 +13,7 @@ from backtest.reporting import (
     build_signal_sheet,
     summarize_backtest,
     write_signal_sheet_csv,
+    write_signal_sheet_brief_markdown,
     write_signal_sheet_review_markdown,
 )
 from pipeline.fetch_reference_data import load_reference_series
@@ -346,6 +347,7 @@ def main(argv: list[str] | None = None) -> None:
     signal_path = output_dir / "signal_sheet.json"
     signal_csv_path = output_dir / "signal_sheet_actions.csv"
     signal_review_path = output_dir / "signal_sheet_review.md"
+    signal_brief_path = output_dir / "signal_sheet_brief.md"
     snapshots_path = output_dir / "daily_snapshots.json"
     holdings_path = output_dir / "holdings_snapshot.json"
     summary_path.write_text(
@@ -358,6 +360,7 @@ def main(argv: list[str] | None = None) -> None:
     )
     write_signal_sheet_csv(signal_csv_path, signal_sheet)
     write_signal_sheet_review_markdown(signal_review_path, signal_sheet)
+    write_signal_sheet_brief_markdown(signal_brief_path, signal_sheet)
     snapshots_path.write_text(
         json.dumps([snapshot.to_dict() for snapshot in result.daily_snapshots], ensure_ascii=False, indent=2),
         encoding="utf-8",
@@ -374,6 +377,7 @@ def main(argv: list[str] | None = None) -> None:
     print(f"[回测] 信号单: {signal_path}")
     print(f"[回测] 信号单CSV: {signal_csv_path}")
     print(f"[回测] 复核摘要: {signal_review_path}")
+    print(f"[回测] 执行卡片: {signal_brief_path}")
     print(f"[回测] 明细: {snapshots_path}")
     print(f"[回测] 持仓: {holdings_path}")
 

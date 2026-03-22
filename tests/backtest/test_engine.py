@@ -139,6 +139,32 @@ def test_backtest_cli_writes_signal_sheet_review_markdown(tmp_path):
     assert "## 仓位摘要" in content
 
 
+def test_backtest_cli_writes_signal_sheet_brief_markdown(tmp_path):
+    output_dir = tmp_path / "out"
+
+    cli_main(
+        [
+            "--mode",
+            "quant_only",
+            "--start",
+            "2026-01-01",
+            "--end",
+            "2026-01-05",
+            "--output-dir",
+            str(output_dir),
+        ]
+    )
+
+    brief_path = output_dir / "quant_only" / "2026-01-01_2026-01-05" / "signal_sheet_brief.md"
+    assert brief_path.exists()
+
+    content = brief_path.read_text(encoding="utf-8")
+    assert "# 盘前执行卡片" in content
+    assert "## 卖出优先" in content
+    assert "## 持仓观察" in content
+    assert "## 新开仓" in content
+
+
 def test_engine_applies_sell_decisions_on_next_open():
     data_bundle = {
         "daily_candidates": {
