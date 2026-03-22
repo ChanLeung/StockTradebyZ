@@ -260,6 +260,7 @@ risk_thresholds:
     candidate = bundle["daily_candidates"]["2026-01-06"][0]
     assert candidate.buy_review_score == 4.6
     assert bundle["next_open_prices"]["2026-01-07"]["600000"] == 10.8
+    assert bundle["signal_close_prices"]["2026-01-06"]["600000"] == 10.5
     assert bundle["stock_to_index"]["600000"] == "HS300"
     assert bundle["sell_decisions"]["2026-01-06"]["600000"] == "sell"
     assert bundle["sell_reviews"]["2026-01-06"]["600000"]["reasoning"] == "趋势破坏。"
@@ -330,6 +331,8 @@ def test_load_local_backtest_bundle_keeps_open_prices_for_tracked_holdings(tmp_p
 
     assert bundle["next_open_prices"]["2026-01-08"]["600000"] == 11.1
     assert bundle["next_open_prices"]["2026-01-08"]["000001"] == 9.6
+    assert bundle["signal_close_prices"]["2026-01-07"]["600000"] == 11.0
+    assert bundle["signal_close_prices"]["2026-01-07"]["000001"] == 9.5
 
 
 def test_engine_tracks_cash_after_trade_costs():

@@ -56,10 +56,11 @@ def build_demo_bundle(start: str, end: str, mode: str) -> dict:
     benchmark_rows = []
     daily_candidates: dict[str, list[Candidate]] = {}
     next_open_prices: dict[str, dict[str, float]] = {}
+    signal_close_prices: dict[str, dict[str, float]] = {}
 
     for idx, signal_date in enumerate(dates[:-1]):
         review_bonus = 0.2 if mode == "quant_plus_ai" else 0.0
-        daily_candidates[signal_date] = [
+        candidates = [
             Candidate(
                 code=code,
                 date=signal_date,
@@ -70,6 +71,11 @@ def build_demo_bundle(start: str, end: str, mode: str) -> dict:
             )
             for code_idx, code in enumerate(codes)
         ]
+        daily_candidates[signal_date] = candidates
+        signal_close_prices[signal_date] = {
+            candidate.code: float(candidate.close)
+            for candidate in candidates
+        }
         trade_date = dates[idx + 1]
         next_open_prices[trade_date] = {
             "600000": 10.5 + idx,
@@ -87,6 +93,7 @@ def build_demo_bundle(start: str, end: str, mode: str) -> dict:
     return {
         "daily_candidates": daily_candidates,
         "next_open_prices": next_open_prices,
+        "signal_close_prices": signal_close_prices,
         "stock_to_index": stock_to_index,
         "benchmark_returns": benchmark_returns,
     }
@@ -119,6 +126,7 @@ def load_local_backtest_bundle(
     raw_cache: dict[str, pd.DataFrame] = {}
     daily_candidates: dict[str, list[Candidate]] = {}
     next_open_prices: dict[str, dict[str, float]] = {}
+    signal_close_prices: dict[str, dict[str, float]] = {}
     stock_to_index: dict[str, str] = {}
     sell_decisions: dict[str, dict[str, str]] = {}
     sell_reviews: dict[str, dict[str, dict]] = {}
@@ -143,6 +151,7 @@ def load_local_backtest_bundle(
 
         tracked_codes.update(candidate.code for candidate in run.candidates)
         open_map: dict[str, float] = {}
+        close_map: dict[str, float] = {}
         enriched_candidates: list[Candidate] = []
         date_sell_decisions: dict[str, str] = {}
         date_sell_reviews: dict[str, dict] = {}
@@ -150,6 +159,9 @@ def load_local_backtest_bundle(
             price_row = _find_price_row(tracked_code, trade_date, raw_dir, raw_cache)
             if price_row is not None:
                 open_map[tracked_code] = float(price_row["open"])
+            signal_row = _find_price_row(tracked_code, pick_date, raw_dir, raw_cache)
+            if signal_row is not None:
+                close_map[tracked_code] = float(signal_row["close"])
 
         for candidate in run.candidates:
             if candidate.code not in open_map:
@@ -172,6 +184,7 @@ def load_local_backtest_bundle(
 
         daily_candidates[pick_date] = enriched_candidates
         next_open_prices[trade_date] = open_map
+        signal_close_prices[pick_date] = close_map
         trade_dates.add(trade_date)
         if date_sell_decisions:
             sell_decisions[pick_date] = date_sell_decisions
@@ -194,6 +207,7 @@ def load_local_backtest_bundle(
     return {
         "daily_candidates": daily_candidates,
         "next_open_prices": next_open_prices,
+        "signal_close_prices": signal_close_prices,
         "stock_to_index": stock_to_index,
         "sell_decisions": sell_decisions,
         "sell_reviews": sell_reviews,

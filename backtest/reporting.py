@@ -69,10 +69,17 @@ def build_signal_sheet(result: BacktestResult) -> dict:
             _build_current_holding_item(position, result)
             for position in result.signal_state.positions
         ],
-        "next_holdings": [position.to_dict() for position in result.final_state.positions],
+        "next_holdings": [
+            _build_next_holding_item(position, result)
+            for position in result.final_state.positions
+        ],
         "buy_list": buy_list,
         "sell_list": sell_list,
-        "buy_orders": [order.to_dict() for order in result.pending_orders if order.side == "buy"],
+        "buy_orders": [
+            _build_buy_order_item(order, result)
+            for order in result.pending_orders
+            if order.side == "buy"
+        ],
         "sell_orders": [
             _build_sell_order_item(order, result, current_positions, active_risk_tags)
             for order in result.pending_orders
@@ -84,10 +91,35 @@ def build_signal_sheet(result: BacktestResult) -> dict:
 def _build_current_holding_item(position, result: BacktestResult) -> dict:
     payload = position.to_dict()
     review = result.last_sell_reviews.get(position.code, {})
+    next_position = _find_position(result.final_state.positions, position.code)
+    last_close = result.last_signal_prices.get(position.code)
     payload["holding_days"] = _compute_holding_days(position.entry_date, result.last_signal_date)
+    payload["current_weight"] = position.weight
+    payload["target_weight"] = next_position.weight if next_position is not None else 0.0
+    payload["action"] = "hold" if next_position is not None else "sell"
+    payload["action_text"] = "继续持有" if next_position is not None else "次日开盘卖出"
+    payload["last_close"] = last_close
+    payload["unrealized_pnl_amount"] = _compute_unrealized_pnl_amount(position, last_close)
+    payload["unrealized_pnl_pct"] = _compute_unrealized_pnl_pct(position, last_close)
     payload["sell_decision"] = review.get("decision", "hold")
     payload["sell_reasoning"] = review.get("reasoning")
     payload["risk_flags"] = list(review.get("risk_flags", []))
+    return payload
+
+
+def _build_next_holding_item(position, result: BacktestResult) -> dict:
+    payload = position.to_dict()
+    current_position = _find_position(result.signal_state.positions, position.code)
+    payload["action"] = "hold" if current_position is not None else "buy"
+    payload["action_text"] = "继续持有" if current_position is not None else "次日开盘买入"
+    return payload
+
+
+def _build_buy_order_item(order, result: BacktestResult) -> dict:
+    payload = order.to_dict()
+    next_position = _find_position(result.final_state.positions, order.code)
+    payload["target_weight"] = next_position.weight if next_position is not None else None
+    payload["instruction"] = "次日开盘买入"
     return payload
 
 
@@ -100,12 +132,15 @@ def _build_sell_order_item(order, result: BacktestResult, current_positions: dic
         if current_position is not None
         else None
     )
+    payload["current_weight"] = current_position.weight if current_position is not None else None
+    payload["target_weight"] = 0.0
     payload["reasoning"] = review.get("reasoning")
     payload["risk_flags"] = list(review.get("risk_flags", []))
     if payload["reasoning"] is None and result.last_risk_state.mode == "risk_off":
         payload["reasoning"] = "risk_off 主动降仓"
         if not payload["risk_flags"]:
             payload["risk_flags"] = list(active_risk_tags)
+    payload["instruction"] = "次日开盘卖出"
     return payload
 
 
@@ -115,3 +150,22 @@ def _compute_holding_days(entry_date: str, signal_date: str | None) -> int:
     entry = date.fromisoformat(entry_date)
     signal = date.fromisoformat(signal_date)
     return max((signal - entry).days, 0)
+
+
+def _compute_unrealized_pnl_amount(position, last_close: float | None) -> float | None:
+    if last_close is None:
+        return None
+    return round((float(last_close) - float(position.entry_price)) * int(position.quantity), 4)
+
+
+def _compute_unrealized_pnl_pct(position, last_close: float | None) -> float | None:
+    if last_close is None or not position.entry_price:
+        return None
+    return round(float(last_close) / float(position.entry_price) - 1.0, 6)
+
+
+def _find_position(positions: list, code: str):
+    for position in positions:
+        if position.code == code:
+            return position
+    return None

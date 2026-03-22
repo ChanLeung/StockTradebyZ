@@ -19,6 +19,7 @@ class BacktestResult:
     final_state: PortfolioState = field(default_factory=lambda: PortfolioState(cash=0.0))
     last_signal_date: str | None = None
     last_trade_date: str | None = None
+    last_signal_prices: dict[str, float] = field(default_factory=dict)
     last_risk_state: RiskState = field(
         default_factory=lambda: RiskState(mode="normal", allow_new_entries=True, max_total_exposure=1.0)
     )
@@ -45,6 +46,9 @@ def run_backtest(config: dict, data_bundle: dict) -> BacktestResult:
         open_prices = data_bundle["next_open_prices"][trade_date]
         pending_orders: list[Order] = []
         result.signal_state = PortfolioState(cash=cash, positions=list(current_positions))
+        result.last_signal_prices = dict(
+            data_bundle.get("signal_close_prices", {}).get(signal_date, {})
+        )
 
         sell_decisions = data_bundle.get("sell_decisions", {}).get(signal_date, {})
         sell_reviews = data_bundle.get("sell_reviews", {}).get(signal_date, {})

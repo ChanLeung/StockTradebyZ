@@ -16,11 +16,14 @@ def test_build_signal_sheet_splits_buy_and_sell_actions():
         final_state=PortfolioState(
             cash=48000.0,
             positions=[
-                Position(code="600000", entry_date="2026-01-07", entry_price=10.8, weight=0.5),
+                Position(code="600000", entry_date="2026-01-07", entry_price=10.8, weight=1.0),
             ],
         ),
         last_signal_date="2026-01-07",
         last_trade_date="2026-01-08",
+        last_signal_prices={
+            "000001": 9.8,
+        },
         last_risk_state=RiskState(mode="risk_off", allow_new_entries=False, max_total_exposure=0.5),
         last_risk_signals={
             "macro_risk": True,
@@ -64,11 +67,25 @@ def test_build_signal_sheet_splits_buy_and_sell_actions():
     assert sheet["cash"] == 50000.0
     assert sheet["current_holdings"][0]["code"] == "000001"
     assert sheet["current_holdings"][0]["holding_days"] == 1
+    assert sheet["current_holdings"][0]["current_weight"] == 1.0
+    assert sheet["current_holdings"][0]["target_weight"] == 0.0
+    assert sheet["current_holdings"][0]["action"] == "sell"
+    assert sheet["current_holdings"][0]["action_text"] == "次日开盘卖出"
+    assert sheet["current_holdings"][0]["last_close"] == 9.8
+    assert sheet["current_holdings"][0]["unrealized_pnl_amount"] == pytest.approx(30.0)
+    assert sheet["current_holdings"][0]["unrealized_pnl_pct"] == pytest.approx(0.031579, abs=1e-6)
     assert sheet["current_holdings"][0]["sell_reasoning"] == "趋势破坏。"
     assert sheet["current_holdings"][0]["risk_flags"] == ["trend_break"]
     assert sheet["next_holdings"][0]["code"] == "600000"
+    assert sheet["next_holdings"][0]["action"] == "buy"
+    assert sheet["next_holdings"][0]["action_text"] == "次日开盘买入"
     assert sheet["sell_orders"][0]["reasoning"] == "趋势破坏。"
     assert sheet["sell_orders"][0]["risk_flags"] == ["trend_break"]
+    assert sheet["buy_orders"][0]["target_weight"] == 1.0
+    assert sheet["buy_orders"][0]["instruction"] == "次日开盘买入"
+    assert sheet["sell_orders"][0]["current_weight"] == 1.0
+    assert sheet["sell_orders"][0]["target_weight"] == 0.0
+    assert sheet["sell_orders"][0]["instruction"] == "次日开盘卖出"
 
 
 def test_summarize_backtest_counts_days_trades_and_benchmark():
