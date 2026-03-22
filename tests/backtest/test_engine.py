@@ -1,6 +1,7 @@
 import pandas as pd
+import pytest
 
-from backtest.cli import build_parser
+from backtest.cli import build_parser, load_local_backtest_bundle
 from backtest.engine import run_backtest
 from pipeline.schemas import Candidate
 
@@ -108,3 +109,69 @@ def test_engine_blocks_new_positions_when_risk_off():
 
     assert result.trades == []
     assert result.daily_snapshots[0].position_count == 0
+
+
+def test_load_local_backtest_bundle_uses_candidates_raw_and_review(tmp_path):
+    candidates_dir = tmp_path / "data" / "candidates"
+    raw_dir = tmp_path / "data" / "raw"
+    review_dir = tmp_path / "data" / "review" / "2026-01-06"
+    benchmark_dir = tmp_path / "data" / "reference" / "benchmarks"
+
+    candidates_dir.mkdir(parents=True)
+    raw_dir.mkdir(parents=True)
+    review_dir.mkdir(parents=True)
+    benchmark_dir.mkdir(parents=True)
+
+    (candidates_dir / "candidates_2026-01-06.json").write_text(
+        """{
+  "run_date": "2026-01-06",
+  "pick_date": "2026-01-06",
+  "candidates": [
+    {
+      "code": "600000",
+      "date": "2026-01-06",
+      "strategy": "b1",
+      "close": 10.5,
+      "turnover_n": 1000.0
+    }
+  ],
+  "meta": {}
+}""",
+        encoding="utf-8",
+    )
+    (raw_dir / "600000.csv").write_text(
+        """date,open,close,high,low,volume
+2026-01-06,10.2,10.5,10.6,10.1,1000
+2026-01-07,10.8,11.0,11.1,10.7,1100
+""",
+        encoding="utf-8",
+    )
+    (review_dir / "600000.json").write_text(
+        """{
+  "total_score": 4.6,
+  "verdict": "PASS",
+  "signal_type": "trend_start",
+  "comment": "趋势健康。"
+}""",
+        encoding="utf-8",
+    )
+    (benchmark_dir / "ALLA.csv").write_text(
+        """date,close
+2026-01-06,100
+2026-01-07,110
+""",
+        encoding="utf-8",
+    )
+
+    bundle = load_local_backtest_bundle(
+        tmp_path,
+        start="2026-01-06",
+        end="2026-01-07",
+        mode="quant_plus_ai",
+    )
+
+    candidate = bundle["daily_candidates"]["2026-01-06"][0]
+    assert candidate.buy_review_score == 4.6
+    assert bundle["next_open_prices"]["2026-01-07"]["600000"] == 10.8
+    assert bundle["stock_to_index"]["600000"] == "ALLA"
+    assert bundle["benchmark_returns"].loc["2026-01-07", "ALLA"] == pytest.approx(0.1)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 import json
 from pathlib import Path
 
@@ -9,7 +10,10 @@ import yaml
 
 from backtest.engine import run_backtest
 from backtest.reporting import build_signal_sheet, summarize_backtest
-from pipeline.schemas import Candidate
+from pipeline.fetch_reference_data import load_reference_series
+from pipeline.schemas import Candidate, CandidateRun
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -84,13 +88,155 @@ def build_demo_bundle(start: str, end: str, mode: str) -> dict:
     }
 
 
+def load_local_backtest_bundle(
+    project_root: str | Path,
+    *,
+    start: str,
+    end: str,
+    mode: str,
+) -> dict:
+    root = Path(project_root)
+    candidates_dir = root / "data" / "candidates"
+    raw_dir = root / "data" / "raw"
+    review_dir = root / "data" / "review"
+    reference_dir = root / "data" / "reference"
+
+    candidate_files = sorted(candidates_dir.glob("candidates_*.json"))
+    candidate_files = [
+        path
+        for path in candidate_files
+        if path.stem != "candidates_latest" and start <= path.stem.replace("candidates_", "") <= end
+    ]
+    if not candidate_files:
+        raise FileNotFoundError("指定区间内没有本地 candidates_YYYY-MM-DD.json 可用于回测")
+
+    raw_cache: dict[str, pd.DataFrame] = {}
+    daily_candidates: dict[str, list[Candidate]] = {}
+    next_open_prices: dict[str, dict[str, float]] = {}
+    stock_to_index: dict[str, str] = {}
+    trade_dates: set[str] = set()
+
+    for candidate_file in candidate_files:
+        run = CandidateRun.from_dict(json.loads(candidate_file.read_text(encoding="utf-8")))
+        pick_date = run.pick_date
+        if not (start <= pick_date <= end):
+            continue
+
+        trade_date = _find_next_trade_date(pick_date, run.candidates, raw_dir, raw_cache)
+        if trade_date is None:
+            continue
+
+        open_map: dict[str, float] = {}
+        enriched_candidates: list[Candidate] = []
+        for candidate in run.candidates:
+            price_row = _find_price_row(candidate.code, trade_date, raw_dir, raw_cache)
+            if price_row is None:
+                continue
+
+            open_map[candidate.code] = float(price_row["open"])
+            enriched = _enrich_candidate(candidate, mode=mode, review_dir=review_dir / pick_date)
+            enriched_candidates.append(enriched)
+            stock_to_index[candidate.code] = "ALLA"
+
+        if not enriched_candidates:
+            continue
+
+        daily_candidates[pick_date] = enriched_candidates
+        next_open_prices[trade_date] = open_map
+        trade_dates.add(trade_date)
+
+    if not daily_candidates:
+        raise FileNotFoundError("本地候选文件存在，但无法组装出有效的回测输入")
+
+    reference = load_reference_series(reference_dir)
+    benchmark_returns = _build_benchmark_returns(reference.get("benchmarks", pd.DataFrame()), trade_dates)
+
+    return {
+        "daily_candidates": daily_candidates,
+        "next_open_prices": next_open_prices,
+        "stock_to_index": stock_to_index,
+        "benchmark_returns": benchmark_returns,
+    }
+
+
+def build_backtest_bundle(project_root: str | Path, *, start: str, end: str, mode: str) -> dict:
+    try:
+        return load_local_backtest_bundle(project_root, start=start, end=end, mode=mode)
+    except FileNotFoundError:
+        return build_demo_bundle(start, end, mode)
+
+
+def _load_raw_frame(code: str, raw_dir: Path, raw_cache: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    if code not in raw_cache:
+        frame = pd.read_csv(raw_dir / f"{code}.csv")
+        frame["date"] = frame["date"].astype(str)
+        raw_cache[code] = frame.sort_values("date").reset_index(drop=True)
+    return raw_cache[code]
+
+
+def _find_next_trade_date(
+    signal_date: str,
+    candidates: list[Candidate],
+    raw_dir: Path,
+    raw_cache: dict[str, pd.DataFrame],
+) -> str | None:
+    next_dates: list[str] = []
+    for candidate in candidates:
+        frame = _load_raw_frame(candidate.code, raw_dir, raw_cache)
+        future_dates = frame.loc[frame["date"] > signal_date, "date"]
+        if not future_dates.empty:
+            next_dates.append(str(future_dates.iloc[0]))
+    return min(next_dates) if next_dates else None
+
+
+def _find_price_row(
+    code: str,
+    trade_date: str,
+    raw_dir: Path,
+    raw_cache: dict[str, pd.DataFrame],
+) -> dict | None:
+    frame = _load_raw_frame(code, raw_dir, raw_cache)
+    matched = frame.loc[frame["date"] == trade_date]
+    if matched.empty:
+        return None
+    return matched.iloc[0].to_dict()
+
+
+def _enrich_candidate(candidate: Candidate, *, mode: str, review_dir: Path) -> Candidate:
+    if mode != "quant_plus_ai":
+        return candidate
+
+    review_path = review_dir / f"{candidate.code}.json"
+    if not review_path.exists():
+        return candidate
+
+    review_data = json.loads(review_path.read_text(encoding="utf-8"))
+    return replace(
+        candidate,
+        buy_review_score=float(review_data.get("total_score", 0.0)),
+        buy_review_date=candidate.date,
+        buy_prompt_version="buy_prompt.md",
+    )
+
+
+def _build_benchmark_returns(benchmarks: pd.DataFrame, trade_dates: set[str]) -> pd.DataFrame:
+    if benchmarks.empty:
+        return pd.DataFrame({"ALLA": [0.0 for _ in sorted(trade_dates)]}, index=sorted(trade_dates))
+
+    result = benchmarks.copy()
+    if "ALLA" not in result.columns:
+        result["ALLA"] = 0.0
+    result = result.sort_index().reindex(sorted(trade_dates)).fillna(0.0)
+    return result
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)
 
     config = load_backtest_config(args.config)
-    output_root = Path(args.output_dir or config.get("output_dir", "data/backtest"))
-    data_bundle = build_demo_bundle(args.start, args.end, args.mode)
+    output_root = PROJECT_ROOT / (args.output_dir or config.get("output_dir", "data/backtest"))
+    data_bundle = build_backtest_bundle(PROJECT_ROOT, start=args.start, end=args.end, mode=args.mode)
     result = run_backtest(config or {"max_positions": 10}, data_bundle)
 
     summary = summarize_backtest(result)

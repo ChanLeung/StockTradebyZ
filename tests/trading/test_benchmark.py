@@ -1,4 +1,5 @@
 import pandas as pd
+import pytest
 
 from pipeline.reference_io import pick_primary_index
 from pipeline.fetch_reference_data import load_reference_series
@@ -17,6 +18,22 @@ def test_load_reference_series_returns_index_and_proxy_frames(tmp_path):
     result = load_reference_series(tmp_path)
 
     assert {"benchmarks", "risk_proxies"} <= set(result)
+
+
+def test_load_reference_series_reads_local_benchmark_csv(tmp_path):
+    benchmark_dir = tmp_path / "benchmarks"
+    benchmark_dir.mkdir(parents=True)
+    (benchmark_dir / "ALLA.csv").write_text(
+        """date,close
+2026-01-06,100
+2026-01-07,110
+""",
+        encoding="utf-8",
+    )
+
+    result = load_reference_series(tmp_path)
+
+    assert result["benchmarks"].loc["2026-01-07", "ALLA"] == pytest.approx(0.1)
 
 
 def test_dynamic_benchmark_uses_position_weights():

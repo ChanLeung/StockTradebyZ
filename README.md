@@ -213,6 +213,13 @@ python run_all.py backtest --mode quant_only --start 2026-01-01 --end 2026-01-31
 - `summary.json`：快照数、成交数、平均持仓数、动态基准累计收益等摘要
 - `signal_sheet.json`：拆分后的买入/卖出清单
 
+现在的行为是：
+
+- 如果区间内存在 `data/candidates/candidates_YYYY-MM-DD.json`，CLI 会优先读取本地历史候选文件
+- `quant_plus_ai` 模式会继续尝试读取 `data/review/<pick_date>/<code>.json` 中的历史 AI 评分
+- 如果本地没有可用的历史候选归档，CLI 才会回退到内置 demo 数据
+- 如果本地没有准备基准指数 CSV，动态基准会先用 `ALLA=0` 的兜底收益跑通主链路
+
 ---
 
 ## 5. 关键配置建议
