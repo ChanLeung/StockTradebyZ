@@ -350,6 +350,57 @@ def write_signal_sheet_csv(path: str | Path, signal_sheet: dict) -> None:
         writer.writerows(rows)
 
 
+def build_signal_sheet_review_markdown(signal_sheet: dict) -> str:
+    lines = [
+        "# 次日执行复核摘要",
+        "",
+        "## 基本信息",
+        f"- 信号日期：{signal_sheet.get('signal_date') or '-'}",
+        f"- 执行日期：{signal_sheet.get('trade_date') or '-'}",
+        f"- 风险模式：{signal_sheet.get('risk_state', {}).get('mode') or '-'}",
+        "",
+        "## 风险摘要",
+        signal_sheet.get("risk_brief") or "暂无风险摘要。",
+        "",
+    ]
+
+    exposure_summary = signal_sheet.get("exposure_summary", {})
+    lines.extend(
+        [
+            "## 仓位摘要",
+            f"- 当前总仓位：{exposure_summary.get('current_total_weight', 0.0)}",
+            f"- 目标总仓位：{exposure_summary.get('target_total_weight', 0.0)}",
+            f"- 计划买入仓位：{exposure_summary.get('planned_buy_weight', 0.0)}",
+            f"- 计划卖出仓位：{exposure_summary.get('planned_sell_weight', 0.0)}",
+            "",
+        ]
+    )
+
+    for group in signal_sheet.get("focus_review_groups", []):
+        items = group.get("items", [])
+        if not items:
+            continue
+        lines.append(f"## {group.get('title') or group.get('category') or '重点复核'}")
+        for item in items:
+            risk_flags = list(item.get("risk_flags", []))
+            lines.append(
+                f"- `{item.get('code')}` `{item.get('action')}` 优先级 `{item.get('priority_score')}`"
+            )
+            if item.get("reasoning"):
+                lines.append(f"  原因：{item.get('reasoning')}")
+            if risk_flags:
+                lines.append(f"  风险标签：{' | '.join(risk_flags)}")
+        lines.append("")
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def write_signal_sheet_review_markdown(path: str | Path, signal_sheet: dict) -> None:
+    markdown_path = Path(path)
+    markdown_path.parent.mkdir(parents=True, exist_ok=True)
+    markdown_path.write_text(build_signal_sheet_review_markdown(signal_sheet), encoding="utf-8")
+
+
 def build_signal_sheet_action_rows(signal_sheet: dict) -> list[dict]:
     rows: list[dict] = []
     signal_date = signal_sheet.get("signal_date")

@@ -114,6 +114,31 @@ def test_backtest_cli_writes_signal_sheet_csv_file(tmp_path):
     assert "signal_date,trade_date,risk_mode,code,action,category,instruction,priority_score" in content
 
 
+def test_backtest_cli_writes_signal_sheet_review_markdown(tmp_path):
+    output_dir = tmp_path / "out"
+
+    cli_main(
+        [
+            "--mode",
+            "quant_only",
+            "--start",
+            "2026-01-01",
+            "--end",
+            "2026-01-05",
+            "--output-dir",
+            str(output_dir),
+        ]
+    )
+
+    review_path = output_dir / "quant_only" / "2026-01-01_2026-01-05" / "signal_sheet_review.md"
+    assert review_path.exists()
+
+    content = review_path.read_text(encoding="utf-8")
+    assert "# 次日执行复核摘要" in content
+    assert "## 风险摘要" in content
+    assert "## 仓位摘要" in content
+
+
 def test_engine_applies_sell_decisions_on_next_open():
     data_bundle = {
         "daily_candidates": {
