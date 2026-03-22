@@ -220,6 +220,10 @@ def _build_focus_review_list(
                 "action": holding.get("action"),
                 "reasoning": holding.get("sell_reasoning"),
                 "risk_flags": list(holding.get("risk_flags", [])),
+                "priority_score": _compute_focus_priority_score(
+                    action=holding.get("action"),
+                    risk_flags=holding.get("risk_flags", []),
+                ),
             }
         )
         seen_codes.add(code)
@@ -234,6 +238,10 @@ def _build_focus_review_list(
                 "action": "sell",
                 "reasoning": order.get("reasoning"),
                 "risk_flags": list(order.get("risk_flags", [])),
+                "priority_score": _compute_focus_priority_score(
+                    action="sell",
+                    risk_flags=order.get("risk_flags", []),
+                ),
             }
         )
         seen_codes.add(code)
@@ -248,6 +256,10 @@ def _build_focus_review_list(
                 "action": "buy",
                 "reasoning": order.get("instruction"),
                 "risk_flags": [],
+                "priority_score": _compute_focus_priority_score(
+                    action="buy",
+                    risk_flags=[],
+                ),
             }
         )
         seen_codes.add(code)
@@ -256,24 +268,31 @@ def _build_focus_review_list(
 
 
 def _focus_review_priority(item: dict) -> tuple[int, int, str]:
-    action_priority = {
-        "sell": 0,
-        "hold": 1,
-        "buy": 2,
-    }
     action = str(item.get("action", "hold"))
     risk_count = len(item.get("risk_flags", []))
     return (
-        action_priority.get(action, 9),
+        -int(item.get("priority_score", _compute_focus_priority_score(action=action, risk_flags=item.get("risk_flags", [])))),
         -risk_count,
         str(item.get("code", "")),
     )
+
+
+def _compute_focus_priority_score(action: str | None, risk_flags: list[str] | None) -> int:
+    action_base = {
+        "sell": 300,
+        "hold": 200,
+        "buy": 100,
+    }
+    return int(action_base.get(str(action or "hold"), 0) + len(risk_flags or []) * 10)
 
 
 def write_signal_sheet_csv(path: str | Path, signal_sheet: dict) -> None:
     csv_path = Path(path)
     csv_path.parent.mkdir(parents=True, exist_ok=True)
     fieldnames = [
+        "signal_date",
+        "trade_date",
+        "risk_mode",
         "code",
         "action",
         "instruction",
@@ -292,10 +311,16 @@ def write_signal_sheet_csv(path: str | Path, signal_sheet: dict) -> None:
 
 def build_signal_sheet_action_rows(signal_sheet: dict) -> list[dict]:
     rows: list[dict] = []
+    signal_date = signal_sheet.get("signal_date")
+    trade_date = signal_sheet.get("trade_date")
+    risk_mode = signal_sheet.get("risk_state", {}).get("mode")
 
     for order in signal_sheet.get("sell_orders", []):
         rows.append(
             {
+                "signal_date": signal_date,
+                "trade_date": trade_date,
+                "risk_mode": risk_mode,
                 "code": order.get("code"),
                 "action": "sell",
                 "instruction": order.get("instruction"),
@@ -310,6 +335,9 @@ def build_signal_sheet_action_rows(signal_sheet: dict) -> list[dict]:
     for order in signal_sheet.get("buy_orders", []):
         rows.append(
             {
+                "signal_date": signal_date,
+                "trade_date": trade_date,
+                "risk_mode": risk_mode,
                 "code": order.get("code"),
                 "action": "buy",
                 "instruction": order.get("instruction"),

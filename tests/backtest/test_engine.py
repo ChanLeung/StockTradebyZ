@@ -111,7 +111,7 @@ def test_backtest_cli_writes_signal_sheet_csv_file(tmp_path):
     assert csv_path.exists()
 
     content = csv_path.read_text(encoding="utf-8")
-    assert "code,action,instruction" in content
+    assert "signal_date,trade_date,risk_mode,code,action,instruction" in content
 
 
 def test_engine_applies_sell_decisions_on_next_open():
