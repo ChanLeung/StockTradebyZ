@@ -17,6 +17,9 @@ class Candidate:
     close: float                       # 选股日收盘价
     turnover_n: float                  # 滚动成交额（流动性代理）
     brick_growth: Optional[float] = None   # 砖型图增长倍数（仅 brick 策略有效）
+    buy_review_score: Optional[float] = None
+    buy_review_date: Optional[str] = None
+    buy_prompt_version: Optional[str] = None
     extra: Dict[str, Any] = field(default_factory=dict)  # 可扩展字段
 
     def to_dict(self) -> Dict[str, Any]:
@@ -26,6 +29,12 @@ class Candidate:
             d.pop("extra")
         if d["brick_growth"] is None:
             d.pop("brick_growth")
+        if d["buy_review_score"] is None:
+            d.pop("buy_review_score")
+        if d["buy_review_date"] is None:
+            d.pop("buy_review_date")
+        if d["buy_prompt_version"] is None:
+            d.pop("buy_prompt_version")
         return d
 
 
