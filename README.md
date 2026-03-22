@@ -270,7 +270,7 @@ python run_all.py backtest --mode quant_only --start 2026-01-01 --end 2026-01-31
 
 - model：模型名称
 - request_delay：调用间隔（防限流）
-- skip_existing：是否断点续跑
+- skip_existing：是否按缓存键断点续跑；只有 `review_type + model + 日期 + 股票 + prompt` 都一致时才复用旧结果
 - suggest_min_score：推荐分数门槛
 
 ---

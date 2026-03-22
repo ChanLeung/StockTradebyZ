@@ -15,6 +15,11 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+try:
+    from agent.review_cache import build_cache_key
+except ImportError:  # 兼容直接运行 python agent/gemini_review.py
+    from review_cache import build_cache_key
+
 
 class BaseReviewer:
     def __init__(self, config: Dict[str, Any]):
@@ -66,6 +71,32 @@ class BaseReviewer:
             raise ValueError(f"未能在模型输出中找到 JSON 对象:\n{text}")
         return json.loads(text[start:end])
 
+    def build_review_cache_key(self, pick_date: str, code: str) -> str:
+        return build_cache_key(
+            self.review_type,
+            str(self.config.get("model", "")),
+            pick_date,
+            code,
+            self.prompt,
+        )
+
+    def build_result_meta(self, pick_date: str, code: str) -> dict:
+        return {
+            "review_type": self.review_type,
+            "model": str(self.config.get("model", "")),
+            "pick_date": pick_date,
+            "cache_key": self.build_review_cache_key(pick_date, code),
+        }
+
+    def attach_result_meta(self, result: dict, *, pick_date: str, code: str) -> dict:
+        normalized = dict(result)
+        normalized["_meta"] = self.build_result_meta(pick_date, code)
+        return normalized
+
+    def should_reuse_existing_result(self, result: dict, *, pick_date: str, code: str) -> bool:
+        meta = result.get("_meta", {})
+        return meta.get("cache_key") == self.build_review_cache_key(pick_date, code)
+
     def review_stock(self, code: str, day_chart: Path, prompt: str) -> dict:
         """子类需实现此方法，调用具体的 LLM 进行打分，并返回 JSON 解析字典。"""
         raise NotImplementedError("子类必须实现 review_stock 方法")
@@ -113,11 +144,13 @@ class BaseReviewer:
             out_file = out_dir / f"{code}.json"
 
             if self.config.get("skip_existing", False) and out_file.exists():
-                print(f"[{i}/{len(candidates)}] {code} — 已存在，跳过。")
                 with open(out_file, encoding="utf-8") as f:
                     result = json.load(f)
-                all_results.append(result)
-                continue
+                if self.should_reuse_existing_result(result, pick_date=pick_date, code=code):
+                    print(f"[{i}/{len(candidates)}] {code} — 已命中缓存，跳过。")
+                    all_results.append(result)
+                    continue
+                print(f"[{i}/{len(candidates)}] {code} — 缓存失效，重新分析。")
 
             day_chart = self.find_chart_images(pick_date, code)
             if day_chart is None:
@@ -133,6 +166,7 @@ class BaseReviewer:
                     day_chart=day_chart,
                     prompt=self.prompt,
                 )
+                result = self.attach_result_meta(result, pick_date=pick_date, code=code)
                 with open(out_file, "w", encoding="utf-8") as f:
                     json.dump(result, f, ensure_ascii=False, indent=2)
                 all_results.append(result)
