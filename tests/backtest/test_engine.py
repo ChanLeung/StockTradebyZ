@@ -175,3 +175,45 @@ def test_load_local_backtest_bundle_uses_candidates_raw_and_review(tmp_path):
     assert bundle["next_open_prices"]["2026-01-07"]["600000"] == 10.8
     assert bundle["stock_to_index"]["600000"] == "ALLA"
     assert bundle["benchmark_returns"].loc["2026-01-07", "ALLA"] == pytest.approx(0.1)
+
+
+def test_engine_tracks_cash_after_trade_costs():
+    data_bundle = {
+        "daily_candidates": {
+            "2026-01-06": [
+                Candidate(
+                    code="600000",
+                    date="2026-01-06",
+                    strategy="b1",
+                    close=10.5,
+                    turnover_n=1000.0,
+                    buy_review_score=4.5,
+                )
+            ],
+            "2026-01-07": [],
+        },
+        "next_open_prices": {
+            "2026-01-07": {"600000": 10.0},
+            "2026-01-08": {"600000": 10.0},
+        },
+        "sell_decisions": {
+            "2026-01-07": {"600000": "sell"},
+        },
+        "stock_to_index": {"600000": "HS300"},
+        "benchmark_returns": pd.DataFrame(
+            {"HS300": [0.01, 0.0]},
+            index=["2026-01-07", "2026-01-08"],
+        ),
+    }
+
+    result = run_backtest(
+        {
+            "max_positions": 10,
+            "initial_cash": 100000.0,
+            "costs": {"commission_bps": 3, "stamp_duty_bps": 10, "slippage_bps": 2},
+        },
+        data_bundle,
+    )
+
+    assert result.daily_snapshots[0].cash == pytest.approx(98999.5)
+    assert result.daily_snapshots[1].cash == pytest.approx(99998.0)

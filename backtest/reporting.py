@@ -24,6 +24,7 @@ def summarize_backtest(result: BacktestResult) -> dict:
         "buy_count": buy_count,
         "sell_count": sell_count,
         "avg_position_count": avg_position_count,
+        "final_cash": result.daily_snapshots[-1].cash if result.daily_snapshots else 0.0,
         "cumulative_benchmark_return": round(cumulative_benchmark - 1.0, 6),
     }
 

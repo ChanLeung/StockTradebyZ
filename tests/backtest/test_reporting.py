@@ -59,4 +59,5 @@ def test_summarize_backtest_counts_days_trades_and_benchmark():
     assert summary["buy_count"] == 1
     assert summary["sell_count"] == 1
     assert summary["avg_position_count"] == 1.5
+    assert summary["final_cash"] == 48000.0
     assert summary["cumulative_benchmark_return"] == -0.0102

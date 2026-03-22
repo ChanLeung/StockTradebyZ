@@ -1,6 +1,7 @@
 max_positions: 10
 hold_limit_days: 15
 output_dir: data/backtest
+initial_cash: 1000000
 
 costs:
   commission_bps: 3

@@ -213,6 +213,13 @@ python run_all.py backtest --mode quant_only --start 2026-01-01 --end 2026-01-31
 - `summary.json`：快照数、成交数、平均持仓数、动态基准累计收益等摘要
 - `signal_sheet.json`：拆分后的买入/卖出清单
 
+`config/backtest.yaml` 里当前已经支持：
+
+- `initial_cash`：回测初始现金
+- `costs.commission_bps`：双边佣金
+- `costs.stamp_duty_bps`：卖出印花税
+- `costs.slippage_bps`：开盘成交滑点
+
 现在的行为是：
 
 - 如果区间内存在 `data/candidates/candidates_YYYY-MM-DD.json`，CLI 会优先读取本地历史候选文件

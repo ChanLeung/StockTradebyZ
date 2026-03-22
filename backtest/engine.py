@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from trading.benchmark import build_position_benchmark_weights, compute_dynamic_benchmark_return
-from trading.orders import simulate_open_fill
+from trading.orders import compute_trade_cash_effect, simulate_open_fill
 from trading.portfolio import apply_sell_decisions, build_target_positions
 from trading.risk import evaluate_risk_state
 from trading.schemas import BacktestDailySnapshot, Order, Position, TradeFill
@@ -19,6 +19,8 @@ class BacktestResult:
 def run_backtest(config: dict, data_bundle: dict) -> BacktestResult:
     result = BacktestResult()
     max_positions = int(config.get("max_positions", 10))
+    cash = float(config.get("initial_cash", 1_000_000.0))
+    cost_config = config.get("costs", {})
     current_positions: list[Position] = []
 
     for signal_date in sorted(data_bundle.get("daily_candidates", {})):
@@ -48,6 +50,7 @@ def run_backtest(config: dict, data_bundle: dict) -> BacktestResult:
             )
             if fill is not None:
                 result.trades.append(fill)
+                cash += compute_trade_cash_effect(fill, cost_config)
                 sold_codes[position.code] = "sell"
 
         current_positions = apply_sell_decisions(current_positions, sold_codes)
@@ -77,6 +80,7 @@ def run_backtest(config: dict, data_bundle: dict) -> BacktestResult:
             )
             if fill is not None:
                 result.trades.append(fill)
+                cash += compute_trade_cash_effect(fill, cost_config)
                 current_positions.append(
                     Position(
                         code=position.code,
@@ -97,7 +101,7 @@ def run_backtest(config: dict, data_bundle: dict) -> BacktestResult:
         result.daily_snapshots.append(
             BacktestDailySnapshot(
                 date=trade_date,
-                cash=0.0,
+                cash=cash,
                 position_count=len(current_positions),
                 benchmark_return=benchmark_return,
             )
