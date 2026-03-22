@@ -216,4 +216,6 @@ def test_engine_tracks_cash_after_trade_costs():
     )
 
     assert result.daily_snapshots[0].cash == pytest.approx(98999.5)
+    assert result.daily_snapshots[0].equity == pytest.approx(99999.5)
     assert result.daily_snapshots[1].cash == pytest.approx(99998.0)
+    assert result.daily_snapshots[1].equity == pytest.approx(99998.0)

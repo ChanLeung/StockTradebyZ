@@ -9,6 +9,7 @@ class Position:
     entry_date: str
     entry_price: float
     weight: float
+    quantity: int = 100
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -51,6 +52,8 @@ class BacktestDailySnapshot:
     cash: float
     position_count: int
     benchmark_return: float
+    market_value: float = 0.0
+    equity: float = 0.0
 
     def to_dict(self) -> dict:
         return asdict(self)

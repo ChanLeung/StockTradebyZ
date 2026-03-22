@@ -17,6 +17,13 @@ def summarize_backtest(result: BacktestResult) -> dict:
     cumulative_benchmark = 1.0
     for snapshot in result.daily_snapshots:
         cumulative_benchmark *= 1.0 + snapshot.benchmark_return
+    cumulative_benchmark_return = round(cumulative_benchmark - 1.0, 6)
+    ending_equity = result.daily_snapshots[-1].equity if result.daily_snapshots else 0.0
+    total_return = (
+        round((ending_equity / result.initial_cash) - 1.0, 6)
+        if result.initial_cash
+        else 0.0
+    )
 
     return {
         "snapshot_count": snapshot_count,
@@ -25,7 +32,10 @@ def summarize_backtest(result: BacktestResult) -> dict:
         "sell_count": sell_count,
         "avg_position_count": avg_position_count,
         "final_cash": result.daily_snapshots[-1].cash if result.daily_snapshots else 0.0,
-        "cumulative_benchmark_return": round(cumulative_benchmark - 1.0, 6),
+        "ending_equity": ending_equity,
+        "total_return": total_return,
+        "cumulative_benchmark_return": cumulative_benchmark_return,
+        "excess_return": round(total_return - cumulative_benchmark_return, 6),
     }
 
 

@@ -11,6 +11,7 @@ from trading.schemas import BacktestDailySnapshot, Order, Position, TradeFill
 
 @dataclass
 class BacktestResult:
+    initial_cash: float = 0.0
     daily_snapshots: list[BacktestDailySnapshot] = field(default_factory=list)
     trades: list[TradeFill] = field(default_factory=list)
     pending_orders: list[Order] = field(default_factory=list)
@@ -20,6 +21,7 @@ def run_backtest(config: dict, data_bundle: dict) -> BacktestResult:
     result = BacktestResult()
     max_positions = int(config.get("max_positions", 10))
     cash = float(config.get("initial_cash", 1_000_000.0))
+    result.initial_cash = cash
     cost_config = config.get("costs", {})
     current_positions: list[Position] = []
 
@@ -98,12 +100,18 @@ def run_backtest(config: dict, data_bundle: dict) -> BacktestResult:
             data_bundle["benchmark_returns"],
             trade_date,
         )
+        market_value = sum(
+            float(open_prices.get(position.code, position.entry_price)) * position.quantity
+            for position in current_positions
+        )
         result.daily_snapshots.append(
             BacktestDailySnapshot(
                 date=trade_date,
                 cash=cash,
                 position_count=len(current_positions),
                 benchmark_return=benchmark_return,
+                market_value=market_value,
+                equity=cash + market_value,
             )
         )
 
