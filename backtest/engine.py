@@ -6,7 +6,7 @@ from trading.benchmark import build_position_benchmark_weights, compute_dynamic_
 from trading.orders import compute_trade_cash_effect, simulate_open_fill
 from trading.portfolio import apply_risk_budget, apply_sell_decisions, build_target_positions
 from trading.risk import evaluate_risk_state
-from trading.schemas import BacktestDailySnapshot, Order, Position, TradeFill
+from trading.schemas import BacktestDailySnapshot, Order, PortfolioState, Position, TradeFill
 
 
 @dataclass
@@ -15,6 +15,7 @@ class BacktestResult:
     daily_snapshots: list[BacktestDailySnapshot] = field(default_factory=list)
     trades: list[TradeFill] = field(default_factory=list)
     pending_orders: list[Order] = field(default_factory=list)
+    final_state: PortfolioState = field(default_factory=lambda: PortfolioState(cash=0.0))
 
 
 def run_backtest(config: dict, data_bundle: dict) -> BacktestResult:
@@ -139,6 +140,7 @@ def run_backtest(config: dict, data_bundle: dict) -> BacktestResult:
             )
         )
 
+    result.final_state = PortfolioState(cash=cash, positions=list(current_positions))
     return result
 
 

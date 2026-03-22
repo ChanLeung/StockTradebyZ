@@ -1,5 +1,8 @@
 # gemini_sell_review.yaml
 # Gemini 卖出图表复评配置（相对路径基于项目根目录）
+# candidates 支持两种输入：
+# 1. 候选池文件 data/candidates/candidates_*.json
+# 2. 持仓快照文件 data/**/holdings_snapshot.json
 
 candidates: data/candidates/candidates_latest.json
 kline_dir: data/kline

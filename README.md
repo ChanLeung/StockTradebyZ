@@ -193,6 +193,8 @@ python -m agent.sell_review --config config/gemini_sell_review.yaml
 
 配置见 [config/gemini_review.yaml](config/gemini_review.yaml) 和 [config/gemini_sell_review.yaml](config/gemini_sell_review.yaml)。
 
+其中卖出复评的 `candidates` 参数除了支持普通候选池 JSON，也支持直接指向回测产出的 `holdings_snapshot.json`，方便把当前持仓直接送入出场评估。
+
 读取候选与图表后，输出：
 
 - data/review/日期/代码.json
@@ -243,6 +245,7 @@ python run_all.py backtest --mode quant_only --start 2026-01-01 --end 2026-01-31
 - 如果存在 `data/reference/index_membership.json`，股票会按 [config/reference_data.yaml](config/reference_data.yaml) 的优先级映射到主基准指数
 - 如果存在 `data/reference/risk_proxies/*.csv`，回测会按 [config/reference_data.yaml](config/reference_data.yaml) 里的阈值生成 `macro_risk`
 - 当系统进入 `risk_off` 时，回测现在不仅会禁止开新仓，还会按最大总暴露比例主动裁减已有持仓
+- 每次回测结束后，输出目录还会写出 `holdings_snapshot.json`，可直接作为后续卖出复评或人工执行的标准化持仓输入
 - 如果本地没有可用的历史候选归档，CLI 才会回退到内置 demo 数据
 - 如果本地没有准备基准指数 CSV，动态基准会先用 `ALLA=0` 的兜底收益跑通主链路
 

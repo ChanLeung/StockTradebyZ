@@ -14,6 +14,7 @@ from pipeline.fetch_reference_data import load_reference_series
 from pipeline.reference_io import load_index_membership, load_reference_config, pick_primary_index
 from pipeline.schemas import Candidate, CandidateRun
 from agent.review_types import parse_sell_review
+from trading.holdings_io import save_holdings_snapshot
 from trading.risk import build_risk_signals
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -314,6 +315,7 @@ def main(argv: list[str] | None = None) -> None:
     summary_path = output_dir / "summary.json"
     signal_path = output_dir / "signal_sheet.json"
     snapshots_path = output_dir / "daily_snapshots.json"
+    holdings_path = output_dir / "holdings_snapshot.json"
     summary_path.write_text(
         json.dumps(summary, ensure_ascii=False, indent=2),
         encoding="utf-8",
@@ -326,12 +328,18 @@ def main(argv: list[str] | None = None) -> None:
         json.dumps([snapshot.to_dict() for snapshot in result.daily_snapshots], ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+    save_holdings_snapshot(
+        holdings_path,
+        as_of_date=result.daily_snapshots[-1].date if result.daily_snapshots else args.end,
+        state=result.final_state,
+    )
 
     print(f"[回测] 模式: {args.mode}")
     print(f"[回测] 区间: {args.start} -> {args.end}")
     print(f"[回测] 摘要: {summary_path}")
     print(f"[回测] 信号单: {signal_path}")
     print(f"[回测] 明细: {snapshots_path}")
+    print(f"[回测] 持仓: {holdings_path}")
 
 
 if __name__ == "__main__":

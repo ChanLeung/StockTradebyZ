@@ -32,6 +32,21 @@ class BaseReviewer:
         with open(path, encoding="utf-8") as f:
             return json.load(f)
 
+    @classmethod
+    def load_review_universe(cls, path: Path) -> dict:
+        payload = cls.load_candidates(path)
+        if "candidates" in payload and "pick_date" in payload:
+            return payload
+
+        if "state" in payload and "as_of_date" in payload:
+            positions = payload.get("state", {}).get("positions", [])
+            return {
+                "pick_date": payload["as_of_date"],
+                "candidates": [{"code": position["code"]} for position in positions],
+            }
+
+        raise ValueError(f"不支持的 reviewer 输入文件格式: {path}")
+
     def find_chart_images(self, pick_date: str, code: str) -> Optional[Path]:
         date_dir = self.kline_dir / pick_date
         day_chart = date_dir / f"{code}_day.jpg"
@@ -82,7 +97,7 @@ class BaseReviewer:
         }
 
     def run(self):
-        candidates_data = self.load_candidates(Path(self.config["candidates"]))
+        candidates_data = self.load_review_universe(Path(self.config["candidates"]))
         pick_date: str = candidates_data["pick_date"]
         candidates: List[dict] = candidates_data["candidates"]
         print(f"[INFO] pick_date={pick_date}，候选股票数={len(candidates)}")

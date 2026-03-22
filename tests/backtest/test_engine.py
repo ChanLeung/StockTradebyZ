@@ -4,6 +4,7 @@ import pytest
 from backtest.cli import build_parser, load_local_backtest_bundle, main as cli_main
 from backtest.engine import run_backtest
 from pipeline.schemas import Candidate
+from trading.holdings_io import load_holdings_snapshot
 
 
 def test_engine_runs_close_to_next_open_cycle():
@@ -64,6 +65,30 @@ def test_backtest_cli_writes_daily_snapshots_file(tmp_path):
 
     snapshot_path = output_dir / "quant_only" / "2026-01-01_2026-01-05" / "daily_snapshots.json"
     assert snapshot_path.exists()
+
+
+def test_backtest_cli_writes_holdings_snapshot_file(tmp_path):
+    output_dir = tmp_path / "out"
+
+    cli_main(
+        [
+            "--mode",
+            "quant_only",
+            "--start",
+            "2026-01-01",
+            "--end",
+            "2026-01-05",
+            "--output-dir",
+            str(output_dir),
+        ]
+    )
+
+    holdings_path = output_dir / "quant_only" / "2026-01-01_2026-01-05" / "holdings_snapshot.json"
+    assert holdings_path.exists()
+
+    snapshot = load_holdings_snapshot(holdings_path)
+    assert snapshot["as_of_date"] == "2026-01-05"
+    assert snapshot["state"].cash >= 0.0
 
 
 def test_engine_applies_sell_decisions_on_next_open():

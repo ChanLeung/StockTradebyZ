@@ -1,4 +1,5 @@
 from pipeline.schemas import Candidate
+from trading.holdings_io import load_holdings_snapshot, save_holdings_snapshot
 from trading.portfolio import apply_risk_budget, apply_sell_decisions, build_target_positions
 from trading.schemas import PortfolioState, Position
 
@@ -87,3 +88,21 @@ def test_apply_risk_budget_trims_positions_by_exposure():
 
     assert [position.code for position in kept] == ["600000", "600001"]
     assert [position.code for position in trimmed] == ["600002", "600003"]
+
+
+def test_holdings_snapshot_round_trip(tmp_path):
+    snapshot_path = tmp_path / "holdings_snapshot.json"
+    state = PortfolioState(
+        cash=95000.0,
+        positions=[
+            Position(code="600000", entry_date="2026-01-07", entry_price=10.8, weight=0.5),
+            Position(code="000001", entry_date="2026-01-07", entry_price=9.6, weight=0.5),
+        ],
+    )
+
+    save_holdings_snapshot(snapshot_path, as_of_date="2026-01-08", state=state)
+    loaded = load_holdings_snapshot(snapshot_path)
+
+    assert loaded["as_of_date"] == "2026-01-08"
+    assert loaded["state"].cash == 95000.0
+    assert [position.code for position in loaded["state"].positions] == ["600000", "000001"]
