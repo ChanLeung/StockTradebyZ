@@ -1,9 +1,9 @@
 from pathlib import Path
 
-from agent.buy_review import BuyReviewer
+from agent.buy_review import BuyReviewer, load_buy_config
 from agent.gemini_review import load_config
 from agent.review_types import parse_buy_review, parse_sell_review
-from agent.sell_review import SellReviewer
+from agent.sell_review import SellReviewer, load_sell_config
 
 
 def test_parse_buy_review_keeps_total_score_and_verdict():
@@ -48,3 +48,63 @@ def test_legacy_gemini_config_defaults_to_buy_prompt():
     config = load_config(Path("config/gemini_review.yaml"))
 
     assert config["prompt_path"].name == "buy_prompt.md"
+
+
+def test_buy_reviewer_normalizes_buy_payload():
+    result = BuyReviewer.normalize_result(
+        {
+            "total_score": 4.2,
+            "verdict": "PASS",
+            "signal_type": "trend_start",
+            "comment": "趋势健康。",
+        },
+        code="600000",
+    )
+
+    assert result["code"] == "600000"
+    assert result["total_score"] == 4.2
+    assert result["verdict"] == "PASS"
+
+
+def test_sell_reviewer_normalizes_sell_payload():
+    result = SellReviewer.normalize_result(
+        {
+            "decision": "sell",
+            "reasoning": "趋势破坏。",
+            "risk_flags": ["trend_break"],
+            "confidence": 0.8,
+        },
+        code="600000",
+    )
+
+    assert result["code"] == "600000"
+    assert result["decision"] == "sell"
+    assert result["risk_flags"] == ["trend_break"]
+
+
+def test_sell_reviewer_generates_hold_and_sell_summary():
+    reviewer = object.__new__(SellReviewer)
+
+    suggestion = reviewer.generate_suggestion(
+        "2026-03-17",
+        [
+            {"code": "600000", "decision": "hold", "confidence": 0.7},
+            {"code": "000001", "decision": "sell", "confidence": 0.8},
+        ],
+        0.0,
+    )
+
+    assert suggestion["hold_list"] == ["600000"]
+    assert suggestion["sell_list"] == ["000001"]
+
+
+def test_sell_config_uses_review_sell_output_dir():
+    config = load_sell_config()
+
+    assert config["output_dir"].name == "review_sell"
+
+
+def test_buy_config_uses_review_output_dir():
+    config = load_buy_config()
+
+    assert config["output_dir"].name == "review"

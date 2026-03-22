@@ -31,10 +31,10 @@ import yaml
 
 try:
     from agent.base_reviewer import BaseReviewer
-    from agent.buy_review import BuyReviewer
+    from agent.review_types import parse_buy_review
 except ImportError:  # 兼容直接运行 python agent/gemini_review.py
     from base_reviewer import BaseReviewer
-    from buy_review import BuyReviewer
+    from review_types import parse_buy_review
 
 # ────────────────────────────────────────────────
 # 配置加载
@@ -47,7 +47,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "candidates": "data/candidates/candidates_latest.json",
     "kline_dir": "data/kline",
     "output_dir": "data/review",
-    "prompt_path": str(BuyReviewer.prompt_path.relative_to(_ROOT)),
+    "prompt_path": "agent/prompts/buy_prompt.md",
     # Gemini 模型参数
     # "model": "gemini-3.1-pro-preview",
     "model": "gemini-3.1-flash-lite-preview",
@@ -62,7 +62,12 @@ def _resolve_cfg_path(path_like: str | Path, base_dir: Path = _ROOT) -> Path:
     return p if p.is_absolute() else (base_dir / p)
 
 
-def load_config(config_path: Path | None = None) -> dict[str, Any]:
+def load_config(
+    config_path: Path | None = None,
+    *,
+    prompt_path: str | Path | None = None,
+    output_dir: str | Path | None = None,
+) -> dict[str, Any]:
     cfg_path = config_path or _DEFAULT_CONFIG_PATH
     if not cfg_path.exists():
         raise FileNotFoundError(f"找不到配置文件：{cfg_path}")
@@ -71,6 +76,10 @@ def load_config(config_path: Path | None = None) -> dict[str, Any]:
         raw = yaml.safe_load(f) or {}
 
     cfg = {**DEFAULT_CONFIG, **raw}
+    if prompt_path is not None:
+        cfg["prompt_path"] = str(prompt_path)
+    if output_dir is not None:
+        cfg["output_dir"] = str(output_dir)
 
     # BaseReviewer 依赖这些路径字段为 Path 对象
     cfg["candidates"] = _resolve_cfg_path(cfg["candidates"])
@@ -81,8 +90,9 @@ def load_config(config_path: Path | None = None) -> dict[str, Any]:
     return cfg
 
 
-class GeminiReviewer(BaseReviewer):
-    review_type = BuyReviewer.review_type
+class GeminiJsonReviewer(BaseReviewer):
+    review_type = "generic"
+    prompt_path = Path(__file__).resolve().parent / "prompts" / "buy_prompt.md"
 
     def __init__(self, config):
         super().__init__(config)
@@ -106,16 +116,22 @@ class GeminiReviewer(BaseReviewer):
         data = path.read_bytes()
         return types.Part.from_bytes(data=data, mime_type=mime_type)
 
-    def review_stock(self, code: str, day_chart: Path, prompt: str) -> dict:
-        """
-        调用 Gemini API，对单支股票进行图表分析，返回解析后的 JSON 结果。
-        """
-        user_text = (
+    def build_user_text(self, code: str) -> str:
+        return (
             f"股票代码：{code}\n\n"
             "以下是该股票的 **日线图**，请按照系统提示中的框架进行分析，"
             "并严格按照要求输出 JSON。"
         )
 
+    @staticmethod
+    def normalize_result(payload: dict, *, code: str) -> dict:
+        result = dict(payload)
+        result["code"] = code
+        return result
+
+    def review_stock(self, code: str, day_chart: Path, prompt: str) -> dict:
+        """调用 Gemini API，对单支股票进行图表分析，返回解析后的 JSON 结果。"""
+        user_text = self.build_user_text(code)
         parts: list[types.Part] = [
             types.Part.from_text(text="【日线图】"),
             self.image_to_part(day_chart),
@@ -136,8 +152,23 @@ class GeminiReviewer(BaseReviewer):
             raise RuntimeError(f"Gemini 返回空响应，无法解析 JSON（code={code}）")
 
         result = self.extract_json(response_text)
-        result["code"] = code  # 附加股票代码便于追溯
-        return result
+        return self.normalize_result(result, code=code)
+
+
+class GeminiReviewer(GeminiJsonReviewer):
+    review_type = "buy"
+    prompt_path = Path(__file__).resolve().parent / "prompts" / "buy_prompt.md"
+
+    @staticmethod
+    def normalize_result(payload: dict, *, code: str) -> dict:
+        parsed = parse_buy_review(payload)
+        return {
+            "code": code,
+            "total_score": parsed.total_score,
+            "verdict": parsed.verdict,
+            "signal_type": parsed.signal_type,
+            "comment": parsed.comment,
+        }
 
 
 def main():

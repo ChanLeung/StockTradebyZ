@@ -1,0 +1,11 @@
+# gemini_sell_review.yaml
+# Gemini 卖出图表复评配置（相对路径基于项目根目录）
+
+candidates: data/candidates/candidates_latest.json
+kline_dir: data/kline
+output_dir: data/review_sell
+prompt_path: agent/prompts/sell_prompt.md
+
+model: gemini-3.1-flash-lite-preview
+request_delay: 5
+skip_existing: false

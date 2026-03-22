@@ -180,20 +180,25 @@ python dashboard/export_kline_charts.py
 
 ~~~bash
 python agent/gemini_review.py
+python -m agent.buy_review
+python -m agent.sell_review
 ~~~
 
 可选参数示例：
 
 ~~~bash
 python agent/gemini_review.py --config config/gemini_review.yaml
+python -m agent.sell_review --config config/gemini_sell_review.yaml
 ~~~
 
-配置见 [config/gemini_review.yaml](config/gemini_review.yaml)。
+配置见 [config/gemini_review.yaml](config/gemini_review.yaml) 和 [config/gemini_sell_review.yaml](config/gemini_sell_review.yaml)。
 
 读取候选与图表后，输出：
 
 - data/review/日期/代码.json
 - data/review/日期/suggestion.json
+- data/review_sell/日期/代码.json
+- data/review_sell/日期/suggestion.json
 
 ### 步骤 5：研究闭环回测
 
