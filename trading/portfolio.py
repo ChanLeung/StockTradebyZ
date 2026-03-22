@@ -2,6 +2,17 @@ from pipeline.schemas import Candidate
 from trading.schemas import Position
 
 
+def apply_sell_decisions(
+    positions: list[Position],
+    sell_decisions: dict[str, str],
+) -> list[Position]:
+    return [
+        position
+        for position in positions
+        if sell_decisions.get(position.code, "hold") != "sell"
+    ]
+
+
 def build_target_positions(
     candidates: list[Candidate],
     *,

@@ -4,8 +4,9 @@ from dataclasses import dataclass, field
 
 from trading.benchmark import build_position_benchmark_weights, compute_dynamic_benchmark_return
 from trading.orders import simulate_open_fill
-from trading.portfolio import build_target_positions
-from trading.schemas import BacktestDailySnapshot, Order, TradeFill
+from trading.portfolio import apply_sell_decisions, build_target_positions
+from trading.risk import evaluate_risk_state
+from trading.schemas import BacktestDailySnapshot, Order, Position, TradeFill
 
 
 @dataclass
@@ -18,8 +19,10 @@ class BacktestResult:
 def run_backtest(config: dict, data_bundle: dict) -> BacktestResult:
     result = BacktestResult()
     max_positions = int(config.get("max_positions", 10))
+    current_positions: list[Position] = []
 
-    for signal_date, candidates in data_bundle.get("daily_candidates", {}).items():
+    for signal_date in sorted(data_bundle.get("daily_candidates", {})):
+        candidates = data_bundle["daily_candidates"][signal_date]
         target_positions = build_target_positions(
             candidates,
             as_of_date=_next_trade_date(signal_date, data_bundle),
@@ -27,21 +30,65 @@ def run_backtest(config: dict, data_bundle: dict) -> BacktestResult:
         )
         trade_date = _next_trade_date(signal_date, data_bundle)
         open_prices = data_bundle["next_open_prices"][trade_date]
-        result.pending_orders = [
-            Order(code=position.code, side="buy", quantity=100) for position in target_positions
-        ]
+        pending_orders: list[Order] = []
 
-        for position in target_positions:
+        sell_decisions = data_bundle.get("sell_decisions", {}).get(signal_date, {})
+        sold_codes: dict[str, str] = {}
+        for position in current_positions:
+            if sell_decisions.get(position.code) != "sell":
+                continue
+
+            order = Order(code=position.code, side="sell", quantity=100)
+            pending_orders.append(order)
             fill = simulate_open_fill(
-                Order(code=position.code, side="buy", quantity=100),
+                order,
                 open_price=open_prices[position.code],
                 high=open_prices[position.code],
                 low=open_prices[position.code],
             )
             if fill is not None:
                 result.trades.append(fill)
+                sold_codes[position.code] = "sell"
 
-        weights = build_position_benchmark_weights(target_positions, data_bundle["stock_to_index"])
+        current_positions = apply_sell_decisions(current_positions, sold_codes)
+
+        risk_state = evaluate_risk_state(
+            data_bundle.get("risk_signals", {}).get(signal_date, {})
+        )
+        existing_codes = {position.code for position in current_positions}
+        available_slots = max(max_positions - len(current_positions), 0)
+        buy_targets: list[Position] = []
+        if risk_state.allow_new_entries and available_slots > 0:
+            for position in target_positions:
+                if position.code in existing_codes:
+                    continue
+                buy_targets.append(position)
+                if len(buy_targets) >= available_slots:
+                    break
+
+        for position in buy_targets:
+            order = Order(code=position.code, side="buy", quantity=100)
+            pending_orders.append(order)
+            fill = simulate_open_fill(
+                order,
+                open_price=open_prices[position.code],
+                high=open_prices[position.code],
+                low=open_prices[position.code],
+            )
+            if fill is not None:
+                result.trades.append(fill)
+                current_positions.append(
+                    Position(
+                        code=position.code,
+                        entry_date=trade_date,
+                        entry_price=fill.fill_price,
+                        weight=position.weight,
+                    )
+                )
+
+        result.pending_orders = pending_orders
+
+        weights = build_position_benchmark_weights(current_positions, data_bundle["stock_to_index"])
         benchmark_return = compute_dynamic_benchmark_return(
             weights,
             data_bundle["benchmark_returns"],
@@ -51,7 +98,7 @@ def run_backtest(config: dict, data_bundle: dict) -> BacktestResult:
             BacktestDailySnapshot(
                 date=trade_date,
                 cash=0.0,
-                position_count=len(target_positions),
+                position_count=len(current_positions),
                 benchmark_return=benchmark_return,
             )
         )

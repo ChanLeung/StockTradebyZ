@@ -1,5 +1,5 @@
 from pipeline.schemas import Candidate
-from trading.portfolio import build_target_positions
+from trading.portfolio import apply_sell_decisions, build_target_positions
 from trading.schemas import PortfolioState, Position
 
 
@@ -61,3 +61,17 @@ def test_select_top_candidates_assigns_equal_weights():
     assert len(positions) == 10
     assert {position.weight for position in positions} == {0.1}
     assert positions[0].code == "600000"
+
+
+def test_apply_sell_decisions_filters_out_sell_positions():
+    positions = [
+        Position(code="600000", entry_date="2026-01-07", entry_price=10.8, weight=0.5),
+        Position(code="000001", entry_date="2026-01-07", entry_price=9.6, weight=0.5),
+    ]
+
+    remaining = apply_sell_decisions(
+        positions,
+        {"600000": "hold", "000001": "sell"},
+    )
+
+    assert [position.code for position in remaining] == ["600000"]
