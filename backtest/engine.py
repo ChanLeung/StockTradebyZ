@@ -12,6 +12,7 @@ from trading.schemas import BacktestDailySnapshot, Order, TradeFill
 class BacktestResult:
     daily_snapshots: list[BacktestDailySnapshot] = field(default_factory=list)
     trades: list[TradeFill] = field(default_factory=list)
+    pending_orders: list[Order] = field(default_factory=list)
 
 
 def run_backtest(config: dict, data_bundle: dict) -> BacktestResult:
@@ -26,6 +27,9 @@ def run_backtest(config: dict, data_bundle: dict) -> BacktestResult:
         )
         trade_date = _next_trade_date(signal_date, data_bundle)
         open_prices = data_bundle["next_open_prices"][trade_date]
+        result.pending_orders = [
+            Order(code=position.code, side="buy", quantity=100) for position in target_positions
+        ]
 
         for position in target_positions:
             fill = simulate_open_fill(
