@@ -4,3 +4,7 @@ benchmark_priority:
   - CSI1000
   - CSI2000
   - ALLA
+
+risk_thresholds:
+  a_share_break_lte: -0.02
+  macro_move_abs: 0.03

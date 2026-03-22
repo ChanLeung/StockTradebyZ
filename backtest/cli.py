@@ -13,6 +13,8 @@ from backtest.reporting import build_signal_sheet, summarize_backtest
 from pipeline.fetch_reference_data import load_reference_series
 from pipeline.reference_io import load_index_membership, load_reference_config, pick_primary_index
 from pipeline.schemas import Candidate, CandidateRun
+from agent.review_types import parse_sell_review
+from trading.risk import build_risk_signals
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -95,11 +97,13 @@ def load_local_backtest_bundle(
     start: str,
     end: str,
     mode: str,
+    manual_risk_off: bool = False,
 ) -> dict:
     root = Path(project_root)
     candidates_dir = root / "data" / "candidates"
     raw_dir = root / "data" / "raw"
     review_dir = root / "data" / "review"
+    review_sell_dir = root / "data" / "review_sell"
     reference_dir = root / "data" / "reference"
 
     candidate_files = sorted(candidates_dir.glob("candidates_*.json"))
@@ -115,6 +119,7 @@ def load_local_backtest_bundle(
     daily_candidates: dict[str, list[Candidate]] = {}
     next_open_prices: dict[str, dict[str, float]] = {}
     stock_to_index: dict[str, str] = {}
+    sell_decisions: dict[str, dict[str, str]] = {}
     trade_dates: set[str] = set()
     reference_config = load_reference_config(root / "config" / "reference_data.yaml")
     benchmark_priority = reference_config.get(
@@ -135,6 +140,7 @@ def load_local_backtest_bundle(
 
         open_map: dict[str, float] = {}
         enriched_candidates: list[Candidate] = []
+        date_sell_decisions: dict[str, str] = {}
         for candidate in run.candidates:
             price_row = _find_price_row(candidate.code, trade_date, raw_dir, raw_cache)
             if price_row is None:
@@ -148,6 +154,9 @@ def load_local_backtest_bundle(
                 membership,
                 benchmark_priority,
             )
+            sell_decision = _load_sell_decision(candidate.code, review_sell_dir / pick_date)
+            if sell_decision is not None:
+                date_sell_decisions[candidate.code] = sell_decision
 
         if not enriched_candidates:
             continue
@@ -155,24 +164,48 @@ def load_local_backtest_bundle(
         daily_candidates[pick_date] = enriched_candidates
         next_open_prices[trade_date] = open_map
         trade_dates.add(trade_date)
+        if date_sell_decisions:
+            sell_decisions[pick_date] = date_sell_decisions
 
     if not daily_candidates:
         raise FileNotFoundError("本地候选文件存在，但无法组装出有效的回测输入")
 
     reference = load_reference_series(reference_dir)
     benchmark_returns = _build_benchmark_returns(reference.get("benchmarks", pd.DataFrame()), trade_dates)
+    risk_signals = build_risk_signals(
+        sorted(daily_candidates.keys()),
+        reference.get("benchmarks", pd.DataFrame()),
+        reference.get("risk_proxies", pd.DataFrame()),
+        reference_config.get("risk_thresholds", {}),
+        manual_risk_off=manual_risk_off,
+    )
 
     return {
         "daily_candidates": daily_candidates,
         "next_open_prices": next_open_prices,
         "stock_to_index": stock_to_index,
+        "sell_decisions": sell_decisions,
+        "risk_signals": risk_signals,
         "benchmark_returns": benchmark_returns,
     }
 
 
-def build_backtest_bundle(project_root: str | Path, *, start: str, end: str, mode: str) -> dict:
+def build_backtest_bundle(
+    project_root: str | Path,
+    *,
+    start: str,
+    end: str,
+    mode: str,
+    manual_risk_off: bool = False,
+) -> dict:
     try:
-        return load_local_backtest_bundle(project_root, start=start, end=end, mode=mode)
+        return load_local_backtest_bundle(
+            project_root,
+            start=start,
+            end=end,
+            mode=mode,
+            manual_risk_off=manual_risk_off,
+        )
     except FileNotFoundError:
         return build_demo_bundle(start, end, mode)
 
@@ -230,6 +263,14 @@ def _enrich_candidate(candidate: Candidate, *, mode: str, review_dir: Path) -> C
     )
 
 
+def _load_sell_decision(code: str, review_dir: Path) -> str | None:
+    review_path = review_dir / f"{code}.json"
+    if not review_path.exists():
+        return None
+    review = parse_sell_review(json.loads(review_path.read_text(encoding="utf-8")))
+    return review.decision
+
+
 def _build_benchmark_returns(benchmarks: pd.DataFrame, trade_dates: set[str]) -> pd.DataFrame:
     if benchmarks.empty:
         return pd.DataFrame({"ALLA": [0.0 for _ in sorted(trade_dates)]}, index=sorted(trade_dates))
@@ -247,7 +288,13 @@ def main(argv: list[str] | None = None) -> None:
 
     config = load_backtest_config(args.config)
     output_root = PROJECT_ROOT / (args.output_dir or config.get("output_dir", "data/backtest"))
-    data_bundle = build_backtest_bundle(PROJECT_ROOT, start=args.start, end=args.end, mode=args.mode)
+    data_bundle = build_backtest_bundle(
+        PROJECT_ROOT,
+        start=args.start,
+        end=args.end,
+        mode=args.mode,
+        manual_risk_off=bool(config.get("risk", {}).get("manual_switch", False)),
+    )
     result = run_backtest(config or {"max_positions": 10}, data_bundle)
 
     summary = summarize_backtest(result)

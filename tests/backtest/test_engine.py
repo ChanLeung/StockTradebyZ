@@ -115,14 +115,18 @@ def test_load_local_backtest_bundle_uses_candidates_raw_and_review(tmp_path):
     candidates_dir = tmp_path / "data" / "candidates"
     raw_dir = tmp_path / "data" / "raw"
     review_dir = tmp_path / "data" / "review" / "2026-01-06"
+    review_sell_dir = tmp_path / "data" / "review_sell" / "2026-01-06"
     benchmark_dir = tmp_path / "data" / "reference" / "benchmarks"
+    risk_proxy_dir = tmp_path / "data" / "reference" / "risk_proxies"
     config_dir = tmp_path / "config"
     reference_data_dir = tmp_path / "data" / "reference"
 
     candidates_dir.mkdir(parents=True)
     raw_dir.mkdir(parents=True)
     review_dir.mkdir(parents=True)
+    review_sell_dir.mkdir(parents=True)
     benchmark_dir.mkdir(parents=True)
+    risk_proxy_dir.mkdir(parents=True)
     config_dir.mkdir(parents=True)
 
     (candidates_dir / "candidates_2026-01-06.json").write_text(
@@ -158,10 +162,26 @@ def test_load_local_backtest_bundle_uses_candidates_raw_and_review(tmp_path):
 }""",
         encoding="utf-8",
     )
+    (review_sell_dir / "600000.json").write_text(
+        """{
+  "decision": "sell",
+  "reasoning": "趋势破坏。",
+  "risk_flags": ["trend_break"],
+  "confidence": 0.9
+}""",
+        encoding="utf-8",
+    )
     (benchmark_dir / "ALLA.csv").write_text(
         """date,close
 2026-01-06,100
 2026-01-07,110
+""",
+        encoding="utf-8",
+    )
+    (risk_proxy_dir / "US_EQ.csv").write_text(
+        """date,close
+2026-01-05,100
+2026-01-06,95
 """,
         encoding="utf-8",
     )
@@ -178,6 +198,9 @@ def test_load_local_backtest_bundle_uses_candidates_raw_and_review(tmp_path):
   - CSI1000
   - CSI2000
   - ALLA
+risk_thresholds:
+  a_share_break_lte: -0.02
+  macro_move_abs: 0.03
 """,
         encoding="utf-8",
     )
@@ -193,6 +216,8 @@ def test_load_local_backtest_bundle_uses_candidates_raw_and_review(tmp_path):
     assert candidate.buy_review_score == 4.6
     assert bundle["next_open_prices"]["2026-01-07"]["600000"] == 10.8
     assert bundle["stock_to_index"]["600000"] == "HS300"
+    assert bundle["sell_decisions"]["2026-01-06"]["600000"] == "sell"
+    assert bundle["risk_signals"]["2026-01-06"]["macro_risk"] is True
     assert bundle["benchmark_returns"].loc["2026-01-07", "ALLA"] == pytest.approx(0.1)
 
 
