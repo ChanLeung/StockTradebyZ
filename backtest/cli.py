@@ -11,6 +11,7 @@ import yaml
 from backtest.engine import run_backtest
 from backtest.reporting import build_signal_sheet, summarize_backtest
 from pipeline.fetch_reference_data import load_reference_series
+from pipeline.reference_io import load_index_membership, load_reference_config, pick_primary_index
 from pipeline.schemas import Candidate, CandidateRun
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -115,6 +116,12 @@ def load_local_backtest_bundle(
     next_open_prices: dict[str, dict[str, float]] = {}
     stock_to_index: dict[str, str] = {}
     trade_dates: set[str] = set()
+    reference_config = load_reference_config(root / "config" / "reference_data.yaml")
+    benchmark_priority = reference_config.get(
+        "benchmark_priority",
+        ["HS300", "CSI500", "CSI1000", "CSI2000", "ALLA"],
+    )
+    membership = load_index_membership(reference_dir / "index_membership.json")
 
     for candidate_file in candidate_files:
         run = CandidateRun.from_dict(json.loads(candidate_file.read_text(encoding="utf-8")))
@@ -136,7 +143,11 @@ def load_local_backtest_bundle(
             open_map[candidate.code] = float(price_row["open"])
             enriched = _enrich_candidate(candidate, mode=mode, review_dir=review_dir / pick_date)
             enriched_candidates.append(enriched)
-            stock_to_index[candidate.code] = "ALLA"
+            stock_to_index[candidate.code] = pick_primary_index(
+                candidate.code,
+                membership,
+                benchmark_priority,
+            )
 
         if not enriched_candidates:
             continue

@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import yaml
@@ -6,6 +7,18 @@ import yaml
 def load_reference_config(path: str | Path) -> dict:
     config_path = Path(path)
     with open(config_path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f) or {}
+
+
+def load_index_membership(path: str | Path) -> dict[str, list[str]]:
+    snapshot_path = Path(path)
+    if not snapshot_path.exists():
+        return {}
+
+    if snapshot_path.suffix.lower() == ".json":
+        return json.loads(snapshot_path.read_text(encoding="utf-8"))
+
+    with open(snapshot_path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
 
 

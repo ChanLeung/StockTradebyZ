@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from pipeline.reference_io import pick_primary_index
+from pipeline.reference_io import load_index_membership, pick_primary_index
 from pipeline.fetch_reference_data import load_reference_series
 from trading.benchmark import build_position_benchmark_weights, compute_dynamic_benchmark_return
 from trading.schemas import Position
@@ -34,6 +34,15 @@ def test_load_reference_series_reads_local_benchmark_csv(tmp_path):
     result = load_reference_series(tmp_path)
 
     assert result["benchmarks"].loc["2026-01-07", "ALLA"] == pytest.approx(0.1)
+
+
+def test_load_index_membership_reads_json_snapshot(tmp_path):
+    snapshot = tmp_path / "index_membership.json"
+    snapshot.write_text('{"600000": ["CSI1000", "HS300"]}', encoding="utf-8")
+
+    mapping = load_index_membership(snapshot)
+
+    assert mapping["600000"] == ["CSI1000", "HS300"]
 
 
 def test_dynamic_benchmark_uses_position_weights():

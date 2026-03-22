@@ -116,11 +116,14 @@ def test_load_local_backtest_bundle_uses_candidates_raw_and_review(tmp_path):
     raw_dir = tmp_path / "data" / "raw"
     review_dir = tmp_path / "data" / "review" / "2026-01-06"
     benchmark_dir = tmp_path / "data" / "reference" / "benchmarks"
+    config_dir = tmp_path / "config"
+    reference_data_dir = tmp_path / "data" / "reference"
 
     candidates_dir.mkdir(parents=True)
     raw_dir.mkdir(parents=True)
     review_dir.mkdir(parents=True)
     benchmark_dir.mkdir(parents=True)
+    config_dir.mkdir(parents=True)
 
     (candidates_dir / "candidates_2026-01-06.json").write_text(
         """{
@@ -162,6 +165,22 @@ def test_load_local_backtest_bundle_uses_candidates_raw_and_review(tmp_path):
 """,
         encoding="utf-8",
     )
+    (reference_data_dir / "index_membership.json").write_text(
+        """{
+  "600000": ["CSI1000", "HS300"]
+}""",
+        encoding="utf-8",
+    )
+    (config_dir / "reference_data.yaml").write_text(
+        """benchmark_priority:
+  - HS300
+  - CSI500
+  - CSI1000
+  - CSI2000
+  - ALLA
+""",
+        encoding="utf-8",
+    )
 
     bundle = load_local_backtest_bundle(
         tmp_path,
@@ -173,7 +192,7 @@ def test_load_local_backtest_bundle_uses_candidates_raw_and_review(tmp_path):
     candidate = bundle["daily_candidates"]["2026-01-06"][0]
     assert candidate.buy_review_score == 4.6
     assert bundle["next_open_prices"]["2026-01-07"]["600000"] == 10.8
-    assert bundle["stock_to_index"]["600000"] == "ALLA"
+    assert bundle["stock_to_index"]["600000"] == "HS300"
     assert bundle["benchmark_returns"].loc["2026-01-07", "ALLA"] == pytest.approx(0.1)
 
 
