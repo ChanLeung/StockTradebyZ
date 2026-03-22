@@ -79,6 +79,7 @@ def build_signal_sheet(result: BacktestResult) -> dict:
         for order in result.pending_orders
         if order.side == "sell"
     ]
+    focus_review_list = _build_focus_review_list(current_holdings, buy_orders, sell_orders)
 
     return {
         "signal_date": result.last_signal_date,
@@ -89,7 +90,8 @@ def build_signal_sheet(result: BacktestResult) -> dict:
         "current_holdings": current_holdings,
         "next_holdings": next_holdings,
         "exposure_summary": _build_exposure_summary(current_holdings, next_holdings, buy_orders, sell_orders),
-        "focus_review_list": _build_focus_review_list(current_holdings, buy_orders, sell_orders),
+        "focus_review_list": focus_review_list,
+        "focus_review_groups": _build_focus_review_groups(focus_review_list),
         "buy_list": buy_list,
         "sell_list": sell_list,
         "buy_orders": buy_orders,
@@ -297,6 +299,32 @@ def _focus_category(action: str | None) -> str:
     }.get(str(action or "hold"), "other")
 
 
+def _build_focus_review_groups(focus_review_list: list[dict]) -> list[dict]:
+    category_titles = {
+        "sell_review": "卖出复核",
+        "hold_watch": "持仓观察",
+        "new_buy": "新开仓",
+    }
+    grouped_items: dict[str, list[dict]] = {}
+    for item in focus_review_list:
+        category = str(item.get("category") or "other")
+        grouped_items.setdefault(category, []).append(item)
+
+    groups: list[dict] = []
+    for category in ("sell_review", "hold_watch", "new_buy", "other"):
+        items = grouped_items.get(category, [])
+        if not items:
+            continue
+        groups.append(
+            {
+                "category": category,
+                "title": category_titles.get(category, "其他"),
+                "items": items,
+            }
+        )
+    return groups
+
+
 def write_signal_sheet_csv(path: str | Path, signal_sheet: dict) -> None:
     csv_path = Path(path)
     csv_path.parent.mkdir(parents=True, exist_ok=True)
@@ -306,6 +334,7 @@ def write_signal_sheet_csv(path: str | Path, signal_sheet: dict) -> None:
         "risk_mode",
         "code",
         "action",
+        "category",
         "instruction",
         "priority_score",
         "current_weight",
@@ -335,6 +364,7 @@ def build_signal_sheet_action_rows(signal_sheet: dict) -> list[dict]:
                 "risk_mode": risk_mode,
                 "code": order.get("code"),
                 "action": "sell",
+                "category": _focus_category("sell"),
                 "instruction": order.get("instruction"),
                 "priority_score": _compute_focus_priority_score(
                     action="sell",
@@ -356,6 +386,7 @@ def build_signal_sheet_action_rows(signal_sheet: dict) -> list[dict]:
                 "risk_mode": risk_mode,
                 "code": order.get("code"),
                 "action": "buy",
+                "category": _focus_category("buy"),
                 "instruction": order.get("instruction"),
                 "priority_score": _compute_focus_priority_score(
                     action="buy",
