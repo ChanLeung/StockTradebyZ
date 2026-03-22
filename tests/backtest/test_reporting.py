@@ -10,6 +10,7 @@ def test_build_signal_sheet_splits_buy_and_sell_actions():
         signal_state=PortfolioState(
             cash=50000.0,
             positions=[
+                Position(code="000002", entry_date="2026-01-05", entry_price=10.0, weight=0.5),
                 Position(code="000001", entry_date="2026-01-06", entry_price=9.5, weight=1.0),
             ],
         ),
@@ -17,12 +18,14 @@ def test_build_signal_sheet_splits_buy_and_sell_actions():
             cash=48000.0,
             positions=[
                 Position(code="600000", entry_date="2026-01-07", entry_price=10.8, weight=1.0),
+                Position(code="000002", entry_date="2026-01-05", entry_price=10.0, weight=0.5),
             ],
         ),
         last_signal_date="2026-01-07",
         last_trade_date="2026-01-08",
         last_signal_prices={
             "000001": 9.8,
+            "000002": 9.9,
         },
         last_risk_state=RiskState(mode="risk_off", allow_new_entries=False, max_total_exposure=0.5),
         last_risk_signals={
@@ -35,6 +38,11 @@ def test_build_signal_sheet_splits_buy_and_sell_actions():
                 "decision": "sell",
                 "reasoning": "趋势破坏。",
                 "risk_flags": ["trend_break"],
+            },
+            "000002": {
+                "decision": "hold",
+                "reasoning": "波动加大，继续观察。",
+                "risk_flags": ["volatility"],
             }
         },
         daily_snapshots=[
@@ -65,17 +73,17 @@ def test_build_signal_sheet_splits_buy_and_sell_actions():
     assert sheet["risk_state"]["mode"] == "risk_off"
     assert set(sheet["risk_state"]["active_risk_tags"]) == {"macro_risk", "manual_risk_off"}
     assert sheet["cash"] == 50000.0
-    assert sheet["current_holdings"][0]["code"] == "000001"
-    assert sheet["current_holdings"][0]["holding_days"] == 1
-    assert sheet["current_holdings"][0]["current_weight"] == 1.0
-    assert sheet["current_holdings"][0]["target_weight"] == 0.0
-    assert sheet["current_holdings"][0]["action"] == "sell"
-    assert sheet["current_holdings"][0]["action_text"] == "次日开盘卖出"
-    assert sheet["current_holdings"][0]["last_close"] == 9.8
-    assert sheet["current_holdings"][0]["unrealized_pnl_amount"] == pytest.approx(30.0)
-    assert sheet["current_holdings"][0]["unrealized_pnl_pct"] == pytest.approx(0.031579, abs=1e-6)
-    assert sheet["current_holdings"][0]["sell_reasoning"] == "趋势破坏。"
-    assert sheet["current_holdings"][0]["risk_flags"] == ["trend_break"]
+    sold_holding = next(item for item in sheet["current_holdings"] if item["code"] == "000001")
+    assert sold_holding["holding_days"] == 1
+    assert sold_holding["current_weight"] == 1.0
+    assert sold_holding["target_weight"] == 0.0
+    assert sold_holding["action"] == "sell"
+    assert sold_holding["action_text"] == "次日开盘卖出"
+    assert sold_holding["last_close"] == 9.8
+    assert sold_holding["unrealized_pnl_amount"] == pytest.approx(30.0)
+    assert sold_holding["unrealized_pnl_pct"] == pytest.approx(0.031579, abs=1e-6)
+    assert sold_holding["sell_reasoning"] == "趋势破坏。"
+    assert sold_holding["risk_flags"] == ["trend_break"]
     assert sheet["next_holdings"][0]["code"] == "600000"
     assert sheet["next_holdings"][0]["action"] == "buy"
     assert sheet["next_holdings"][0]["action_text"] == "次日开盘买入"
@@ -86,8 +94,8 @@ def test_build_signal_sheet_splits_buy_and_sell_actions():
     assert sheet["sell_orders"][0]["current_weight"] == 1.0
     assert sheet["sell_orders"][0]["target_weight"] == 0.0
     assert sheet["sell_orders"][0]["instruction"] == "次日开盘卖出"
-    assert sheet["exposure_summary"]["current_total_weight"] == 1.0
-    assert sheet["exposure_summary"]["target_total_weight"] == 1.0
+    assert sheet["exposure_summary"]["current_total_weight"] == 1.5
+    assert sheet["exposure_summary"]["target_total_weight"] == 1.5
     assert sheet["exposure_summary"]["planned_buy_weight"] == 1.0
     assert sheet["exposure_summary"]["planned_sell_weight"] == 1.0
     assert "risk_off" in sheet["risk_brief"]
@@ -95,6 +103,10 @@ def test_build_signal_sheet_splits_buy_and_sell_actions():
     assert sheet["focus_review_list"][0]["code"] == "000001"
     assert sheet["focus_review_list"][0]["action"] == "sell"
     assert sheet["focus_review_list"][0]["reasoning"] == "趋势破坏。"
+    assert sheet["focus_review_list"][1]["code"] == "000002"
+    assert sheet["focus_review_list"][1]["action"] == "hold"
+    assert sheet["focus_review_list"][2]["code"] == "600000"
+    assert sheet["focus_review_list"][2]["action"] == "buy"
 
 
 def test_summarize_backtest_counts_days_trades_and_benchmark():

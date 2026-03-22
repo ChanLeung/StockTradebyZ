@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import csv
 from datetime import date
+from pathlib import Path
 
 from backtest.engine import BacktestResult
 
@@ -250,4 +252,73 @@ def _build_focus_review_list(
         )
         seen_codes.add(code)
 
-    return focus_items
+    return sorted(focus_items, key=_focus_review_priority)
+
+
+def _focus_review_priority(item: dict) -> tuple[int, int, str]:
+    action_priority = {
+        "sell": 0,
+        "hold": 1,
+        "buy": 2,
+    }
+    action = str(item.get("action", "hold"))
+    risk_count = len(item.get("risk_flags", []))
+    return (
+        action_priority.get(action, 9),
+        -risk_count,
+        str(item.get("code", "")),
+    )
+
+
+def write_signal_sheet_csv(path: str | Path, signal_sheet: dict) -> None:
+    csv_path = Path(path)
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    fieldnames = [
+        "code",
+        "action",
+        "instruction",
+        "current_weight",
+        "target_weight",
+        "holding_days",
+        "reasoning",
+        "risk_flags",
+    ]
+    rows = build_signal_sheet_action_rows(signal_sheet)
+    with csv_path.open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def build_signal_sheet_action_rows(signal_sheet: dict) -> list[dict]:
+    rows: list[dict] = []
+
+    for order in signal_sheet.get("sell_orders", []):
+        rows.append(
+            {
+                "code": order.get("code"),
+                "action": "sell",
+                "instruction": order.get("instruction"),
+                "current_weight": order.get("current_weight"),
+                "target_weight": order.get("target_weight"),
+                "holding_days": order.get("holding_days"),
+                "reasoning": order.get("reasoning"),
+                "risk_flags": "|".join(order.get("risk_flags", [])),
+            }
+        )
+
+    for order in signal_sheet.get("buy_orders", []):
+        rows.append(
+            {
+                "code": order.get("code"),
+                "action": "buy",
+                "instruction": order.get("instruction"),
+                "current_weight": order.get("current_weight"),
+                "target_weight": order.get("target_weight"),
+                "holding_days": order.get("holding_days"),
+                "reasoning": order.get("reasoning"),
+                "risk_flags": "|".join(order.get("risk_flags", [])),
+            }
+        )
+
+    return rows

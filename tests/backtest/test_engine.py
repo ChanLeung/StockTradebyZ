@@ -91,6 +91,29 @@ def test_backtest_cli_writes_holdings_snapshot_file(tmp_path):
     assert snapshot["state"].cash >= 0.0
 
 
+def test_backtest_cli_writes_signal_sheet_csv_file(tmp_path):
+    output_dir = tmp_path / "out"
+
+    cli_main(
+        [
+            "--mode",
+            "quant_only",
+            "--start",
+            "2026-01-01",
+            "--end",
+            "2026-01-05",
+            "--output-dir",
+            str(output_dir),
+        ]
+    )
+
+    csv_path = output_dir / "quant_only" / "2026-01-01_2026-01-05" / "signal_sheet_actions.csv"
+    assert csv_path.exists()
+
+    content = csv_path.read_text(encoding="utf-8")
+    assert "code,action,instruction" in content
+
+
 def test_engine_applies_sell_decisions_on_next_open():
     data_bundle = {
         "daily_candidates": {

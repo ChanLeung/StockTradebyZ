@@ -9,7 +9,7 @@ import pandas as pd
 import yaml
 
 from backtest.engine import run_backtest
-from backtest.reporting import build_signal_sheet, summarize_backtest
+from backtest.reporting import build_signal_sheet, summarize_backtest, write_signal_sheet_csv
 from pipeline.fetch_reference_data import load_reference_series
 from pipeline.reference_io import load_index_membership, load_reference_config, pick_primary_index
 from pipeline.schemas import Candidate, CandidateRun
@@ -339,6 +339,7 @@ def main(argv: list[str] | None = None) -> None:
 
     summary_path = output_dir / "summary.json"
     signal_path = output_dir / "signal_sheet.json"
+    signal_csv_path = output_dir / "signal_sheet_actions.csv"
     snapshots_path = output_dir / "daily_snapshots.json"
     holdings_path = output_dir / "holdings_snapshot.json"
     summary_path.write_text(
@@ -349,6 +350,7 @@ def main(argv: list[str] | None = None) -> None:
         json.dumps(signal_sheet, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+    write_signal_sheet_csv(signal_csv_path, signal_sheet)
     snapshots_path.write_text(
         json.dumps([snapshot.to_dict() for snapshot in result.daily_snapshots], ensure_ascii=False, indent=2),
         encoding="utf-8",
@@ -363,6 +365,7 @@ def main(argv: list[str] | None = None) -> None:
     print(f"[回测] 区间: {args.start} -> {args.end}")
     print(f"[回测] 摘要: {summary_path}")
     print(f"[回测] 信号单: {signal_path}")
+    print(f"[回测] 信号单CSV: {signal_csv_path}")
     print(f"[回测] 明细: {snapshots_path}")
     print(f"[回测] 持仓: {holdings_path}")
 
