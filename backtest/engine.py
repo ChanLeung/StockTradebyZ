@@ -6,7 +6,7 @@ from trading.benchmark import build_position_benchmark_weights, compute_dynamic_
 from trading.orders import compute_trade_cash_effect, simulate_open_fill
 from trading.portfolio import apply_risk_budget, apply_sell_decisions, build_target_positions
 from trading.risk import evaluate_risk_state
-from trading.schemas import BacktestDailySnapshot, Order, PortfolioState, Position, TradeFill
+from trading.schemas import BacktestDailySnapshot, Order, PortfolioState, Position, RiskState, TradeFill
 
 
 @dataclass
@@ -15,7 +15,13 @@ class BacktestResult:
     daily_snapshots: list[BacktestDailySnapshot] = field(default_factory=list)
     trades: list[TradeFill] = field(default_factory=list)
     pending_orders: list[Order] = field(default_factory=list)
+    signal_state: PortfolioState = field(default_factory=lambda: PortfolioState(cash=0.0))
     final_state: PortfolioState = field(default_factory=lambda: PortfolioState(cash=0.0))
+    last_signal_date: str | None = None
+    last_trade_date: str | None = None
+    last_risk_state: RiskState = field(
+        default_factory=lambda: RiskState(mode="normal", allow_new_entries=True, max_total_exposure=1.0)
+    )
 
 
 def run_backtest(config: dict, data_bundle: dict) -> BacktestResult:
@@ -36,6 +42,7 @@ def run_backtest(config: dict, data_bundle: dict) -> BacktestResult:
         trade_date = _next_trade_date(signal_date, data_bundle)
         open_prices = data_bundle["next_open_prices"][trade_date]
         pending_orders: list[Order] = []
+        result.signal_state = PortfolioState(cash=cash, positions=list(current_positions))
 
         sell_decisions = data_bundle.get("sell_decisions", {}).get(signal_date, {})
         sold_codes: dict[str, str] = {}
@@ -61,6 +68,9 @@ def run_backtest(config: dict, data_bundle: dict) -> BacktestResult:
         risk_state = evaluate_risk_state(
             data_bundle.get("risk_signals", {}).get(signal_date, {})
         )
+        result.last_signal_date = signal_date
+        result.last_trade_date = trade_date
+        result.last_risk_state = risk_state
         kept_positions, trimmed_positions = apply_risk_budget(
             current_positions,
             max_total_exposure=risk_state.max_total_exposure,

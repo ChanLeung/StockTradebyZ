@@ -51,6 +51,14 @@ def build_signal_sheet(result: BacktestResult) -> dict:
     sell_list = [order.code for order in result.pending_orders if order.side == "sell"]
 
     return {
+        "signal_date": result.last_signal_date,
+        "trade_date": result.last_trade_date,
+        "risk_state": result.last_risk_state.to_dict(),
+        "cash": result.signal_state.cash,
+        "current_holdings": [position.to_dict() for position in result.signal_state.positions],
+        "next_holdings": [position.to_dict() for position in result.final_state.positions],
         "buy_list": buy_list,
         "sell_list": sell_list,
+        "buy_orders": [order.to_dict() for order in result.pending_orders if order.side == "buy"],
+        "sell_orders": [order.to_dict() for order in result.pending_orders if order.side == "sell"],
     }

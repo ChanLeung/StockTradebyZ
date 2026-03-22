@@ -2,11 +2,26 @@ import pytest
 
 from backtest.engine import BacktestResult
 from backtest.reporting import build_signal_sheet, summarize_backtest
-from trading.schemas import BacktestDailySnapshot, Order, TradeFill
+from trading.schemas import BacktestDailySnapshot, Order, PortfolioState, Position, RiskState, TradeFill
 
 
 def test_build_signal_sheet_splits_buy_and_sell_actions():
     result = BacktestResult(
+        signal_state=PortfolioState(
+            cash=50000.0,
+            positions=[
+                Position(code="000001", entry_date="2026-01-06", entry_price=9.5, weight=1.0),
+            ],
+        ),
+        final_state=PortfolioState(
+            cash=48000.0,
+            positions=[
+                Position(code="600000", entry_date="2026-01-07", entry_price=10.8, weight=0.5),
+            ],
+        ),
+        last_signal_date="2026-01-07",
+        last_trade_date="2026-01-08",
+        last_risk_state=RiskState(mode="risk_off", allow_new_entries=False, max_total_exposure=0.5),
         daily_snapshots=[
             BacktestDailySnapshot(
                 date="2026-01-07",
@@ -30,6 +45,12 @@ def test_build_signal_sheet_splits_buy_and_sell_actions():
     assert {"buy_list", "sell_list"} <= set(sheet)
     assert sheet["buy_list"] == ["600000"]
     assert sheet["sell_list"] == ["000001"]
+    assert sheet["signal_date"] == "2026-01-07"
+    assert sheet["trade_date"] == "2026-01-08"
+    assert sheet["risk_state"]["mode"] == "risk_off"
+    assert sheet["cash"] == 50000.0
+    assert sheet["current_holdings"][0]["code"] == "000001"
+    assert sheet["next_holdings"][0]["code"] == "600000"
 
 
 def test_summarize_backtest_counts_days_trades_and_benchmark():
