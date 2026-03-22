@@ -72,6 +72,13 @@ uv venv -p 3.12 --clear
 uv pip install -r requirements.txt
 ~~~
 
+如需运行测试：
+
+~~~bash
+uv pip install -r requirements-dev.txt
+pytest tests -v
+~~~
+
 ### 3.3 设置环境变量
 
 推荐使用配置文件（`.env`）管理密钥，在项目根目录新建 `.env`：
