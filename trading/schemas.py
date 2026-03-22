@@ -15,6 +15,27 @@ class Position:
 
 
 @dataclass
+class Order:
+    code: str
+    side: str
+    quantity: int
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass
+class TradeFill:
+    code: str
+    side: str
+    quantity: int
+    fill_price: float
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass
 class PortfolioState:
     cash: float
     positions: list[Position] = field(default_factory=list)
