@@ -220,7 +220,7 @@ python run_all.py backtest --mode quant_only --start 2026-01-01 --end 2026-01-31
 当前回测 CLI 默认生成一份合成研究数据，用来验证“收盘出信号、次日开盘成交、输出报表与信号单”这条主链路是否通畅。输出目录默认是 `data/backtest/<mode>/<start>_<end>/`，其中包含：
 
 - `summary.json`：快照数、成交数、平均持仓数、动态基准累计收益等摘要
-- `signal_sheet.json`：次日人工执行清单，包含当前持仓、执行后持仓、风险状态、持仓天数以及买卖订单的卖出原因/风险标签
+- `signal_sheet.json`：次日人工执行清单，包含当前持仓、执行后持仓、风险状态、持仓天数、盈亏、目标仓位、风险摘要以及重点复核股票列表
 - `daily_snapshots.json`：逐日现金、持仓数、账户权益和基准收益明细
 
 `summary.json` 当前会包含：

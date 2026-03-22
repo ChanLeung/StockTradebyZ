@@ -59,32 +59,39 @@ def build_signal_sheet(result: BacktestResult) -> dict:
     risk_state = result.last_risk_state.to_dict()
     risk_state["active_risk_tags"] = active_risk_tags
     current_positions = {position.code: position for position in result.signal_state.positions}
+    current_holdings = [
+        _build_current_holding_item(position, result)
+        for position in result.signal_state.positions
+    ]
+    next_holdings = [
+        _build_next_holding_item(position, result)
+        for position in result.final_state.positions
+    ]
+    buy_orders = [
+        _build_buy_order_item(order, result)
+        for order in result.pending_orders
+        if order.side == "buy"
+    ]
+    sell_orders = [
+        _build_sell_order_item(order, result, current_positions, active_risk_tags)
+        for order in result.pending_orders
+        if order.side == "sell"
+    ]
 
     return {
         "signal_date": result.last_signal_date,
         "trade_date": result.last_trade_date,
         "risk_state": risk_state,
+        "risk_brief": _build_risk_brief(result.last_risk_state.mode, active_risk_tags),
         "cash": result.signal_state.cash,
-        "current_holdings": [
-            _build_current_holding_item(position, result)
-            for position in result.signal_state.positions
-        ],
-        "next_holdings": [
-            _build_next_holding_item(position, result)
-            for position in result.final_state.positions
-        ],
+        "current_holdings": current_holdings,
+        "next_holdings": next_holdings,
+        "exposure_summary": _build_exposure_summary(current_holdings, next_holdings, buy_orders, sell_orders),
+        "focus_review_list": _build_focus_review_list(current_holdings, buy_orders, sell_orders),
         "buy_list": buy_list,
         "sell_list": sell_list,
-        "buy_orders": [
-            _build_buy_order_item(order, result)
-            for order in result.pending_orders
-            if order.side == "buy"
-        ],
-        "sell_orders": [
-            _build_sell_order_item(order, result, current_positions, active_risk_tags)
-            for order in result.pending_orders
-            if order.side == "sell"
-        ],
+        "buy_orders": buy_orders,
+        "sell_orders": sell_orders,
     }
 
 
@@ -169,3 +176,78 @@ def _find_position(positions: list, code: str):
         if position.code == code:
             return position
     return None
+
+
+def _build_exposure_summary(
+    current_holdings: list[dict],
+    next_holdings: list[dict],
+    buy_orders: list[dict],
+    sell_orders: list[dict],
+) -> dict:
+    return {
+        "current_total_weight": round(sum(item.get("current_weight", item.get("weight", 0.0) or 0.0) for item in current_holdings), 6),
+        "target_total_weight": round(sum(item.get("weight", 0.0) or 0.0 for item in next_holdings), 6),
+        "planned_buy_weight": round(sum(item.get("target_weight", 0.0) or 0.0 for item in buy_orders), 6),
+        "planned_sell_weight": round(sum(item.get("current_weight", 0.0) or 0.0 for item in sell_orders), 6),
+    }
+
+
+def _build_risk_brief(mode: str, active_risk_tags: list[str]) -> str:
+    if active_risk_tags:
+        return f"当前风险状态：{mode}；激活标签：{', '.join(active_risk_tags)}。"
+    return f"当前风险状态：{mode}；未触发额外风险标签。"
+
+
+def _build_focus_review_list(
+    current_holdings: list[dict],
+    buy_orders: list[dict],
+    sell_orders: list[dict],
+) -> list[dict]:
+    focus_items: list[dict] = []
+    seen_codes: set[str] = set()
+
+    for holding in current_holdings:
+        if holding.get("action") != "sell" and not holding.get("risk_flags"):
+            continue
+        code = holding["code"]
+        if code in seen_codes:
+            continue
+        focus_items.append(
+            {
+                "code": code,
+                "action": holding.get("action"),
+                "reasoning": holding.get("sell_reasoning"),
+                "risk_flags": list(holding.get("risk_flags", [])),
+            }
+        )
+        seen_codes.add(code)
+
+    for order in sell_orders:
+        code = order["code"]
+        if code in seen_codes:
+            continue
+        focus_items.append(
+            {
+                "code": code,
+                "action": "sell",
+                "reasoning": order.get("reasoning"),
+                "risk_flags": list(order.get("risk_flags", [])),
+            }
+        )
+        seen_codes.add(code)
+
+    for order in buy_orders:
+        code = order["code"]
+        if code in seen_codes:
+            continue
+        focus_items.append(
+            {
+                "code": code,
+                "action": "buy",
+                "reasoning": order.get("instruction"),
+                "risk_flags": [],
+            }
+        )
+        seen_codes.add(code)
+
+    return focus_items

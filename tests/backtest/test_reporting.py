@@ -86,6 +86,15 @@ def test_build_signal_sheet_splits_buy_and_sell_actions():
     assert sheet["sell_orders"][0]["current_weight"] == 1.0
     assert sheet["sell_orders"][0]["target_weight"] == 0.0
     assert sheet["sell_orders"][0]["instruction"] == "次日开盘卖出"
+    assert sheet["exposure_summary"]["current_total_weight"] == 1.0
+    assert sheet["exposure_summary"]["target_total_weight"] == 1.0
+    assert sheet["exposure_summary"]["planned_buy_weight"] == 1.0
+    assert sheet["exposure_summary"]["planned_sell_weight"] == 1.0
+    assert "risk_off" in sheet["risk_brief"]
+    assert "macro_risk" in sheet["risk_brief"]
+    assert sheet["focus_review_list"][0]["code"] == "000001"
+    assert sheet["focus_review_list"][0]["action"] == "sell"
+    assert sheet["focus_review_list"][0]["reasoning"] == "趋势破坏。"
 
 
 def test_summarize_backtest_counts_days_trades_and_benchmark():
