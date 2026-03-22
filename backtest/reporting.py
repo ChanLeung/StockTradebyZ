@@ -420,10 +420,23 @@ def build_signal_sheet_brief_markdown(signal_sheet: dict) -> str:
         f"- 风险模式：{signal_sheet.get('risk_state', {}).get('mode') or '-'}",
         f"- 当前/目标仓位：{exposure_summary.get('current_total_weight', 0.0)} -> {exposure_summary.get('target_total_weight', 0.0)}",
         "",
+        "## 一句话摘要",
+        _build_brief_summary_line(signal_sheet, group_lookup),
+        "",
         "## 风险提示",
         signal_sheet.get("risk_brief") or "暂无风险摘要。",
         "",
     ]
+    top_actions = _build_brief_top_actions(group_lookup, limit=5)
+    lines.append("## Top 5 重点动作")
+    if not top_actions:
+        lines.append("- 无")
+    else:
+        for index, item in enumerate(top_actions, start=1):
+            lines.append(
+                f"{index}. [{item['title']}] `{item['code']}` {item['reasoning']}"
+            )
+    lines.append("")
 
     for category, title in section_titles:
         items = group_lookup.get(category, [])
@@ -444,6 +457,40 @@ def write_signal_sheet_brief_markdown(path: str | Path, signal_sheet: dict) -> N
     markdown_path = Path(path)
     markdown_path.parent.mkdir(parents=True, exist_ok=True)
     markdown_path.write_text(build_signal_sheet_brief_markdown(signal_sheet), encoding="utf-8")
+
+
+def _build_brief_summary_line(signal_sheet: dict, group_lookup: dict[str, list[dict]]) -> str:
+    exposure_summary = signal_sheet.get("exposure_summary", {})
+    risk_mode = signal_sheet.get("risk_state", {}).get("mode") or "-"
+    return (
+        f"当前风险模式 {risk_mode}；"
+        f"当前/目标仓位 {exposure_summary.get('current_total_weight', 0.0)} -> {exposure_summary.get('target_total_weight', 0.0)}；"
+        f"卖出优先 {len(group_lookup.get('sell_review', []))} 项，"
+        f"持仓观察 {len(group_lookup.get('hold_watch', []))} 项，"
+        f"新开仓 {len(group_lookup.get('new_buy', []))} 项。"
+    )
+
+
+def _build_brief_top_actions(group_lookup: dict[str, list[dict]], limit: int) -> list[dict]:
+    title_map = {
+        "sell_review": "卖出优先",
+        "hold_watch": "持仓观察",
+        "new_buy": "新开仓",
+    }
+    ordered_items: list[dict] = []
+    for category in ("sell_review", "hold_watch", "new_buy"):
+        for item in group_lookup.get(category, []):
+            ordered_items.append(
+                {
+                    "title": title_map.get(category, category),
+                    "code": item.get("code"),
+                    "reasoning": item.get("reasoning") or "无说明。",
+                    "priority_score": int(item.get("priority_score", 0) or 0),
+                }
+            )
+
+    ordered_items.sort(key=lambda item: (-item["priority_score"], str(item["code"])))
+    return ordered_items[:limit]
 
 
 def build_signal_sheet_action_rows(signal_sheet: dict) -> list[dict]:

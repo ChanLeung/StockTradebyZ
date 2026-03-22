@@ -223,7 +223,7 @@ python run_all.py backtest --mode quant_only --start 2026-01-01 --end 2026-01-31
 - `signal_sheet.json`：次日人工执行清单，包含当前持仓、执行后持仓、风险状态、持仓天数、盈亏、目标仓位、风险摘要，以及带分类/优先级/分组的重点复核股票列表
 - `signal_sheet_actions.csv`：按动作展开的一行一条执行清单，含信号日期、执行日期、风险模式、分类、优先级分数等上下文字段，便于人工下单或导入表格复核
 - `signal_sheet_review.md`：面向人工复核的 Markdown 摘要，按风险摘要、仓位摘要和重点复核分组组织，适合直接阅读
-- `signal_sheet_brief.md`：更适合盘前执行的简版 Markdown 卡片，按卖出优先、持仓观察、新开仓三段式展示
+- `signal_sheet_brief.md`：更适合盘前执行的简版 Markdown 卡片，包含一句话摘要、Top 5 重点动作，以及卖出优先、持仓观察、新开仓三段式展示
 - `daily_snapshots.json`：逐日现金、持仓数、账户权益和基准收益明细
 
 `summary.json` 当前会包含：

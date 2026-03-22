@@ -296,3 +296,59 @@ def test_build_signal_sheet_brief_markdown_renders_three_action_sections():
     assert "- `000001` 趋势破坏。" in markdown
     assert "- `000002` 波动加大，继续观察。" in markdown
     assert "- 无" in markdown
+    assert "## 一句话摘要" in markdown
+    assert "当前风险模式 risk_off；当前/目标仓位 1.5 -> 1.0；卖出优先 1 项，持仓观察 1 项，新开仓 0 项。" in markdown
+    assert "## Top 5 重点动作" in markdown
+    assert "1. [卖出优先] `000001` 趋势破坏。" in markdown
+    assert "2. [持仓观察] `000002` 波动加大，继续观察。" in markdown
+
+
+def test_build_signal_sheet_brief_markdown_limits_top_actions_to_five_items():
+    signal_sheet = {
+        "signal_date": "2026-01-07",
+        "trade_date": "2026-01-08",
+        "risk_state": {"mode": "normal", "active_risk_tags": []},
+        "risk_brief": "当前风险状态：normal；未触发额外风险标签。",
+        "exposure_summary": {
+            "current_total_weight": 0.5,
+            "target_total_weight": 1.0,
+            "planned_buy_weight": 0.5,
+            "planned_sell_weight": 0.0,
+        },
+        "focus_review_groups": [
+            {
+                "category": "sell_review",
+                "title": "卖出复核",
+                "items": [
+                    {"code": "000001", "action": "sell", "reasoning": "卖出1", "risk_flags": [], "priority_score": 320, "category": "sell_review"},
+                    {"code": "000002", "action": "sell", "reasoning": "卖出2", "risk_flags": [], "priority_score": 310, "category": "sell_review"},
+                ],
+            },
+            {
+                "category": "hold_watch",
+                "title": "持仓观察",
+                "items": [
+                    {"code": "000003", "action": "hold", "reasoning": "观察1", "risk_flags": [], "priority_score": 210, "category": "hold_watch"},
+                    {"code": "000004", "action": "hold", "reasoning": "观察2", "risk_flags": [], "priority_score": 205, "category": "hold_watch"},
+                ],
+            },
+            {
+                "category": "new_buy",
+                "title": "新开仓",
+                "items": [
+                    {"code": "000005", "action": "buy", "reasoning": "买入1", "risk_flags": [], "priority_score": 110, "category": "new_buy"},
+                    {"code": "000006", "action": "buy", "reasoning": "买入2", "risk_flags": [], "priority_score": 100, "category": "new_buy"},
+                ],
+            },
+        ],
+    }
+
+    markdown = build_signal_sheet_brief_markdown(signal_sheet)
+    top_section = markdown.split("## Top 5 重点动作\n", maxsplit=1)[1].split("\n## 卖出优先（2）", maxsplit=1)[0]
+
+    assert "1. [卖出优先] `000001` 卖出1" in top_section
+    assert "2. [卖出优先] `000002` 卖出2" in top_section
+    assert "3. [持仓观察] `000003` 观察1" in top_section
+    assert "4. [持仓观察] `000004` 观察2" in top_section
+    assert "5. [新开仓] `000005` 买入1" in top_section
+    assert "`000006` 买入2" not in top_section
