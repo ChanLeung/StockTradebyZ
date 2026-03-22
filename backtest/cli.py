@@ -308,6 +308,7 @@ def main(argv: list[str] | None = None) -> None:
 
     summary_path = output_dir / "summary.json"
     signal_path = output_dir / "signal_sheet.json"
+    snapshots_path = output_dir / "daily_snapshots.json"
     summary_path.write_text(
         json.dumps(summary, ensure_ascii=False, indent=2),
         encoding="utf-8",
@@ -316,11 +317,16 @@ def main(argv: list[str] | None = None) -> None:
         json.dumps(signal_sheet, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+    snapshots_path.write_text(
+        json.dumps([snapshot.to_dict() for snapshot in result.daily_snapshots], ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
 
     print(f"[回测] 模式: {args.mode}")
     print(f"[回测] 区间: {args.start} -> {args.end}")
     print(f"[回测] 摘要: {summary_path}")
     print(f"[回测] 信号单: {signal_path}")
+    print(f"[回测] 明细: {snapshots_path}")
 
 
 if __name__ == "__main__":

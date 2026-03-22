@@ -15,8 +15,14 @@ def summarize_backtest(result: BacktestResult) -> dict:
     )
 
     cumulative_benchmark = 1.0
+    peak_equity = 0.0
+    max_drawdown = 0.0
     for snapshot in result.daily_snapshots:
         cumulative_benchmark *= 1.0 + snapshot.benchmark_return
+        peak_equity = max(peak_equity, snapshot.equity)
+        if peak_equity:
+            drawdown = snapshot.equity / peak_equity - 1.0
+            max_drawdown = min(max_drawdown, drawdown)
     cumulative_benchmark_return = round(cumulative_benchmark - 1.0, 6)
     ending_equity = result.daily_snapshots[-1].equity if result.daily_snapshots else 0.0
     total_return = (
@@ -36,6 +42,7 @@ def summarize_backtest(result: BacktestResult) -> dict:
         "total_return": total_return,
         "cumulative_benchmark_return": cumulative_benchmark_return,
         "excess_return": round(total_return - cumulative_benchmark_return, 6),
+        "max_drawdown": round(max_drawdown, 6),
     }
 
 

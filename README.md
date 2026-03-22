@@ -212,6 +212,7 @@ python run_all.py backtest --mode quant_only --start 2026-01-01 --end 2026-01-31
 
 - `summary.json`：快照数、成交数、平均持仓数、动态基准累计收益等摘要
 - `signal_sheet.json`：拆分后的买入/卖出清单
+- `daily_snapshots.json`：逐日现金、持仓数、账户权益和基准收益明细
 
 `summary.json` 当前会包含：
 
@@ -220,6 +221,7 @@ python run_all.py backtest --mode quant_only --start 2026-01-01 --end 2026-01-31
 - `total_return`：策略总收益率
 - `cumulative_benchmark_return`：动态基准累计收益
 - `excess_return`：策略相对动态基准的超额收益
+- `max_drawdown`：基于账户权益曲线计算的最大回撤
 
 `config/backtest.yaml` 里当前已经支持：
 

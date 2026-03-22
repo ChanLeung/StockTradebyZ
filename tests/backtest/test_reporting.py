@@ -70,4 +70,5 @@ def test_summarize_backtest_counts_days_trades_and_benchmark():
     assert summary["ending_equity"] == 49500.0
     assert summary["total_return"] == -0.01
     assert summary["excess_return"] == pytest.approx(0.0002)
+    assert summary["max_drawdown"] == pytest.approx(-0.029412, abs=1e-6)
     assert summary["cumulative_benchmark_return"] == -0.0102

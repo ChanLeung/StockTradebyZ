@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from backtest.cli import build_parser, load_local_backtest_bundle
+from backtest.cli import build_parser, load_local_backtest_bundle, main as cli_main
 from backtest.engine import run_backtest
 from pipeline.schemas import Candidate
 
@@ -44,6 +44,26 @@ def test_backtest_cli_parses_quant_plus_ai_mode():
     args = parser.parse_args(["--mode", "quant_plus_ai"])
 
     assert args.mode == "quant_plus_ai"
+
+
+def test_backtest_cli_writes_daily_snapshots_file(tmp_path):
+    output_dir = tmp_path / "out"
+
+    cli_main(
+        [
+            "--mode",
+            "quant_only",
+            "--start",
+            "2026-01-01",
+            "--end",
+            "2026-01-05",
+            "--output-dir",
+            str(output_dir),
+        ]
+    )
+
+    snapshot_path = output_dir / "quant_only" / "2026-01-01_2026-01-05" / "daily_snapshots.json"
+    assert snapshot_path.exists()
 
 
 def test_engine_applies_sell_decisions_on_next_open():
