@@ -48,6 +48,7 @@
 补充说明：
 
 - [config/reference_data.yaml](config/reference_data.yaml)：动态基准指数优先级和风险代理数据配置
+- `python -m pipeline.fetch_reference_data`：参考数据入口（基准指数与风险代理）
 
 ---
 
