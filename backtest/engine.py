@@ -22,6 +22,8 @@ class BacktestResult:
     last_risk_state: RiskState = field(
         default_factory=lambda: RiskState(mode="normal", allow_new_entries=True, max_total_exposure=1.0)
     )
+    last_risk_signals: dict[str, bool] = field(default_factory=dict)
+    last_sell_reviews: dict[str, dict] = field(default_factory=dict)
 
 
 def run_backtest(config: dict, data_bundle: dict) -> BacktestResult:
@@ -45,6 +47,7 @@ def run_backtest(config: dict, data_bundle: dict) -> BacktestResult:
         result.signal_state = PortfolioState(cash=cash, positions=list(current_positions))
 
         sell_decisions = data_bundle.get("sell_decisions", {}).get(signal_date, {})
+        sell_reviews = data_bundle.get("sell_reviews", {}).get(signal_date, {})
         sold_codes: dict[str, str] = {}
         for position in current_positions:
             if sell_decisions.get(position.code) != "sell":
@@ -65,12 +68,16 @@ def run_backtest(config: dict, data_bundle: dict) -> BacktestResult:
 
         current_positions = apply_sell_decisions(current_positions, sold_codes)
 
-        risk_state = evaluate_risk_state(
-            data_bundle.get("risk_signals", {}).get(signal_date, {})
-        )
+        risk_signals = data_bundle.get("risk_signals", {}).get(signal_date, {})
+        risk_state = evaluate_risk_state(risk_signals)
         result.last_signal_date = signal_date
         result.last_trade_date = trade_date
         result.last_risk_state = risk_state
+        result.last_risk_signals = dict(risk_signals)
+        result.last_sell_reviews = {
+            code: dict(payload)
+            for code, payload in sell_reviews.items()
+        }
         kept_positions, trimmed_positions = apply_risk_budget(
             current_positions,
             max_total_exposure=risk_state.max_total_exposure,

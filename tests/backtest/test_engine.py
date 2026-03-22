@@ -262,6 +262,8 @@ risk_thresholds:
     assert bundle["next_open_prices"]["2026-01-07"]["600000"] == 10.8
     assert bundle["stock_to_index"]["600000"] == "HS300"
     assert bundle["sell_decisions"]["2026-01-06"]["600000"] == "sell"
+    assert bundle["sell_reviews"]["2026-01-06"]["600000"]["reasoning"] == "趋势破坏。"
+    assert bundle["sell_reviews"]["2026-01-06"]["600000"]["risk_flags"] == ["trend_break"]
     assert bundle["risk_signals"]["2026-01-06"]["macro_risk"] is True
     assert bundle["benchmark_returns"].loc["2026-01-07", "ALLA"] == pytest.approx(0.1)
 

@@ -121,6 +121,7 @@ def load_local_backtest_bundle(
     next_open_prices: dict[str, dict[str, float]] = {}
     stock_to_index: dict[str, str] = {}
     sell_decisions: dict[str, dict[str, str]] = {}
+    sell_reviews: dict[str, dict[str, dict]] = {}
     trade_dates: set[str] = set()
     tracked_codes: set[str] = set()
     reference_config = load_reference_config(root / "config" / "reference_data.yaml")
@@ -144,6 +145,7 @@ def load_local_backtest_bundle(
         open_map: dict[str, float] = {}
         enriched_candidates: list[Candidate] = []
         date_sell_decisions: dict[str, str] = {}
+        date_sell_reviews: dict[str, dict] = {}
         for tracked_code in sorted(tracked_codes):
             price_row = _find_price_row(tracked_code, trade_date, raw_dir, raw_cache)
             if price_row is not None:
@@ -160,9 +162,10 @@ def load_local_backtest_bundle(
                 membership,
                 benchmark_priority,
             )
-            sell_decision = _load_sell_decision(candidate.code, review_sell_dir / pick_date)
-            if sell_decision is not None:
-                date_sell_decisions[candidate.code] = sell_decision
+            sell_review = _load_sell_review(candidate.code, review_sell_dir / pick_date)
+            if sell_review is not None:
+                date_sell_decisions[candidate.code] = sell_review["decision"]
+                date_sell_reviews[candidate.code] = sell_review
 
         if not enriched_candidates:
             continue
@@ -172,6 +175,8 @@ def load_local_backtest_bundle(
         trade_dates.add(trade_date)
         if date_sell_decisions:
             sell_decisions[pick_date] = date_sell_decisions
+        if date_sell_reviews:
+            sell_reviews[pick_date] = date_sell_reviews
 
     if not daily_candidates:
         raise FileNotFoundError("本地候选文件存在，但无法组装出有效的回测输入")
@@ -191,6 +196,7 @@ def load_local_backtest_bundle(
         "next_open_prices": next_open_prices,
         "stock_to_index": stock_to_index,
         "sell_decisions": sell_decisions,
+        "sell_reviews": sell_reviews,
         "risk_signals": risk_signals,
         "benchmark_returns": benchmark_returns,
     }
@@ -269,12 +275,17 @@ def _enrich_candidate(candidate: Candidate, *, mode: str, review_dir: Path) -> C
     )
 
 
-def _load_sell_decision(code: str, review_dir: Path) -> str | None:
+def _load_sell_review(code: str, review_dir: Path) -> dict | None:
     review_path = review_dir / f"{code}.json"
     if not review_path.exists():
         return None
     review = parse_sell_review(json.loads(review_path.read_text(encoding="utf-8")))
-    return review.decision
+    return {
+        "decision": review.decision,
+        "reasoning": review.reasoning,
+        "risk_flags": list(review.risk_flags),
+        "confidence": review.confidence,
+    }
 
 
 def _build_benchmark_returns(benchmarks: pd.DataFrame, trade_dates: set[str]) -> pd.DataFrame:

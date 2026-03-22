@@ -22,6 +22,18 @@ def test_build_signal_sheet_splits_buy_and_sell_actions():
         last_signal_date="2026-01-07",
         last_trade_date="2026-01-08",
         last_risk_state=RiskState(mode="risk_off", allow_new_entries=False, max_total_exposure=0.5),
+        last_risk_signals={
+            "macro_risk": True,
+            "manual_risk_off": True,
+            "a_share_break": False,
+        },
+        last_sell_reviews={
+            "000001": {
+                "decision": "sell",
+                "reasoning": "趋势破坏。",
+                "risk_flags": ["trend_break"],
+            }
+        },
         daily_snapshots=[
             BacktestDailySnapshot(
                 date="2026-01-07",
@@ -48,9 +60,15 @@ def test_build_signal_sheet_splits_buy_and_sell_actions():
     assert sheet["signal_date"] == "2026-01-07"
     assert sheet["trade_date"] == "2026-01-08"
     assert sheet["risk_state"]["mode"] == "risk_off"
+    assert set(sheet["risk_state"]["active_risk_tags"]) == {"macro_risk", "manual_risk_off"}
     assert sheet["cash"] == 50000.0
     assert sheet["current_holdings"][0]["code"] == "000001"
+    assert sheet["current_holdings"][0]["holding_days"] == 1
+    assert sheet["current_holdings"][0]["sell_reasoning"] == "趋势破坏。"
+    assert sheet["current_holdings"][0]["risk_flags"] == ["trend_break"]
     assert sheet["next_holdings"][0]["code"] == "600000"
+    assert sheet["sell_orders"][0]["reasoning"] == "趋势破坏。"
+    assert sheet["sell_orders"][0]["risk_flags"] == ["trend_break"]
 
 
 def test_summarize_backtest_counts_days_trades_and_benchmark():
