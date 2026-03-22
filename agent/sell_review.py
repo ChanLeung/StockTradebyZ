@@ -43,13 +43,20 @@ class SellReviewer(GeminiJsonReviewer):
         }
 
 
-def load_sell_config(config_path: Path | None = None) -> dict:
+def load_sell_config(
+    config_path: Path | None = None,
+    *,
+    candidates_path: Path | None = None,
+) -> dict:
     cfg_path = config_path or (_ROOT / "config" / "gemini_sell_review.yaml")
-    return load_config(
+    config = load_config(
         cfg_path,
         prompt_path=str(SellReviewer.prompt_path.relative_to(_ROOT)),
         output_dir="data/review_sell",
     )
+    if candidates_path is not None:
+        config["candidates"] = candidates_path
+    return config
 
 
 def main() -> None:
@@ -59,9 +66,19 @@ def main() -> None:
         default=str(_ROOT / "config" / "gemini_sell_review.yaml"),
         help="配置文件路径（默认 config/gemini_sell_review.yaml）",
     )
+    parser.add_argument(
+        "--input",
+        default=None,
+        help="输入文件路径，可覆盖 candidates 配置",
+    )
     args = parser.parse_args()
 
-    reviewer = SellReviewer(load_sell_config(Path(args.config)))
+    reviewer = SellReviewer(
+        load_sell_config(
+            Path(args.config),
+            candidates_path=Path(args.input) if args.input else None,
+        )
+    )
     reviewer.run()
 
 

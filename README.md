@@ -188,7 +188,9 @@ python -m agent.sell_review
 
 ~~~bash
 python agent/gemini_review.py --config config/gemini_review.yaml
+python -m agent.buy_review --input data/candidates/candidates_latest.json
 python -m agent.sell_review --config config/gemini_sell_review.yaml
+python -m agent.sell_review --input data/backtest/quant_only/2026-03-17_2026-03-17/holdings_snapshot.json
 ~~~
 
 配置见 [config/gemini_review.yaml](config/gemini_review.yaml) 和 [config/gemini_sell_review.yaml](config/gemini_sell_review.yaml)。

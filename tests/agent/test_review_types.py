@@ -108,3 +108,21 @@ def test_buy_config_uses_review_output_dir():
     config = load_buy_config()
 
     assert config["output_dir"].name == "review"
+
+
+def test_sell_config_accepts_input_override(tmp_path):
+    input_path = tmp_path / "holdings_snapshot.json"
+    input_path.write_text("{}", encoding="utf-8")
+
+    config = load_sell_config(candidates_path=input_path)
+
+    assert config["candidates"] == input_path
+
+
+def test_buy_config_accepts_input_override(tmp_path):
+    input_path = tmp_path / "candidates.json"
+    input_path.write_text("{}", encoding="utf-8")
+
+    config = load_buy_config(candidates_path=input_path)
+
+    assert config["candidates"] == input_path
