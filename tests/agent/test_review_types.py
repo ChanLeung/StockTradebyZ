@@ -126,3 +126,21 @@ def test_buy_config_accepts_input_override(tmp_path):
     config = load_buy_config(candidates_path=input_path)
 
     assert config["candidates"] == input_path
+
+
+def test_buy_prompt_keeps_json_contract_and_detailed_scoring_rules():
+    prompt_text = BuyReviewer.prompt_path.read_text(encoding="utf-8")
+
+    assert "必须输出 JSON" in prompt_text
+    assert "total_score" in prompt_text
+    assert "verdict" in prompt_text
+    assert "signal_type" in prompt_text
+    assert "comment" in prompt_text
+    assert "趋势结构" in prompt_text
+    assert "价格位置" in prompt_text
+    assert "量价行为" in prompt_text
+    assert "前期建仓异动" in prompt_text
+    assert "权重" in prompt_text
+    assert "强制推理步骤" in prompt_text
+    assert "只能根据图中实际可见的信息" in prompt_text
+    assert "周线趋势" not in prompt_text
