@@ -66,6 +66,39 @@ def test_buy_reviewer_normalizes_buy_payload():
     assert result["verdict"] == "PASS"
 
 
+def test_buy_reviewer_keeps_full_model_payload_fields():
+    result = BuyReviewer.normalize_result(
+        {
+            "trend_reasoning": "趋势结构良好。",
+            "position_reasoning": "位置尚可。",
+            "volume_reasoning": "量价健康。",
+            "abnormal_move_reasoning": "前期异动明显。",
+            "signal_reasoning": "具备波段潜力。",
+            "scores": {
+                "trend_structure": 4,
+                "price_position": 4,
+                "volume_behavior": 4,
+                "previous_abnormal_move": 5,
+            },
+            "total_score": 4.3,
+            "verdict": "PASS",
+            "signal_type": "trend_start",
+            "comment": "趋势健康。",
+        },
+        code="600000",
+    )
+
+    assert result["code"] == "600000"
+    assert result["total_score"] == 4.3
+    assert result["verdict"] == "PASS"
+    assert result["trend_reasoning"] == "趋势结构良好。"
+    assert result["position_reasoning"] == "位置尚可。"
+    assert result["volume_reasoning"] == "量价健康。"
+    assert result["abnormal_move_reasoning"] == "前期异动明显。"
+    assert result["signal_reasoning"] == "具备波段潜力。"
+    assert result["scores"]["previous_abnormal_move"] == 5
+
+
 def test_sell_reviewer_normalizes_sell_payload():
     result = SellReviewer.normalize_result(
         {
@@ -131,7 +164,7 @@ def test_buy_config_accepts_input_override(tmp_path):
 def test_buy_prompt_keeps_json_contract_and_detailed_scoring_rules():
     prompt_text = BuyReviewer.prompt_path.read_text(encoding="utf-8")
 
-    assert "必须输出 JSON" in prompt_text
+    assert "必须严格 JSON" in prompt_text
     assert "total_score" in prompt_text
     assert "verdict" in prompt_text
     assert "signal_type" in prompt_text
@@ -143,4 +176,4 @@ def test_buy_prompt_keeps_json_contract_and_detailed_scoring_rules():
     assert "权重" in prompt_text
     assert "强制推理步骤" in prompt_text
     assert "只能根据图中实际可见的信息" in prompt_text
-    assert "周线趋势" not in prompt_text
+    assert "周线趋势" in prompt_text

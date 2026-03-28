@@ -162,13 +162,17 @@ class GeminiReviewer(GeminiJsonReviewer):
     @staticmethod
     def normalize_result(payload: dict, *, code: str) -> dict:
         parsed = parse_buy_review(payload)
-        return {
-            "code": code,
-            "total_score": parsed.total_score,
-            "verdict": parsed.verdict,
-            "signal_type": parsed.signal_type,
-            "comment": parsed.comment,
-        }
+        result = dict(payload)
+        result.update(
+            {
+                "code": code,
+                "total_score": parsed.total_score,
+                "verdict": parsed.verdict,
+                "signal_type": parsed.signal_type,
+                "comment": parsed.comment,
+            }
+        )
+        return result
 
 
 def main():

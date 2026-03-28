@@ -1,34 +1,35 @@
 from pathlib import Path
 
 import pandas as pd
-from PIL import Image, ImageDraw
 
 from agent.review_cache import get_cache_path
+from dashboard.components.charts import make_daily_chart
 
 
-def _normalize_close_points(df: pd.DataFrame, width: int, height: int, padding: int) -> list[tuple[float, float]]:
-    closes = df["close"].astype(float).tolist()
-    if not closes:
-        return []
+_RENDERER_VERSION = "plotly_daily_v2_jpg"
+_DEFAULT_BARS = 120
 
-    if len(closes) == 1:
-        x_positions = [width / 2]
-    else:
-        step = (width - padding * 2) / (len(closes) - 1)
-        x_positions = [padding + idx * step for idx in range(len(closes))]
 
-    min_close = min(closes)
-    max_close = max(closes)
-    if max_close == min_close:
-        y_positions = [height / 2 for _ in closes]
-    else:
-        usable_height = height - padding * 2
-        y_positions = [
-            padding + (max_close - close) / (max_close - min_close) * usable_height
-            for close in closes
-        ]
+def _prepare_review_frame(df: pd.DataFrame, *, as_of_date: str) -> pd.DataFrame:
+    prepared = df.copy()
+    prepared["date"] = pd.to_datetime(prepared["date"])
+    prepared = prepared.sort_values("date").reset_index(drop=True)
+    prepared = prepared[prepared["date"] <= pd.Timestamp(as_of_date)].reset_index(drop=True)
+    if prepared.empty:
+        raise ValueError(f"没有可用于评审的历史数据（as_of_date={as_of_date}）")
+    return prepared
 
-    return list(zip(x_positions, y_positions))
+
+def _apply_review_labels(fig, *, code: str) -> None:
+    if getattr(fig.layout, "annotations", None):
+        if len(fig.layout.annotations) >= 1:
+            fig.layout.annotations[0].text = f"{code} 日均线"
+        if len(fig.layout.annotations) >= 2:
+            fig.layout.annotations[1].text = "成交量"
+
+    fig.update_yaxes(title_text="股票价格", row=1, col=1)
+    fig.update_yaxes(title_text="成交量", row=2, col=1)
+    fig.update_xaxes(title_text="日期", showticklabels=True, tickformat="%Y-%m-%d", row=2, col=1)
 
 
 def render_review_chart(
@@ -38,25 +39,25 @@ def render_review_chart(
     review_type: str,
     code: str,
     as_of_date: str,
-    width: int = 1200,
+    width: int = 1400,
     height: int = 700,
 ) -> Path:
-    output_path = get_cache_path(cache_dir, code, as_of_date, review_type, str(width), str(height))
+    output_path = get_cache_path(
+        cache_dir,
+        code,
+        as_of_date,
+        review_type,
+        str(width),
+        str(height),
+        _RENDERER_VERSION,
+        suffix=".jpg",
+    )
     if output_path.exists():
         return output_path
 
-    image = Image.new("RGB", (width, height), "white")
-    draw = ImageDraw.Draw(image)
-
-    padding = 40
-    draw.rectangle((padding, padding, width - padding, height - padding), outline="#d0d7de", width=2)
-
-    points = _normalize_close_points(df, width, height, padding)
-    if len(points) >= 2:
-        draw.line(points, fill="#2563eb", width=4)
-    elif len(points) == 1:
-        x, y = points[0]
-        draw.ellipse((x - 4, y - 4, x + 4, y + 4), fill="#2563eb")
-
-    image.save(output_path, format="PNG")
+    prepared = _prepare_review_frame(df, as_of_date=as_of_date)
+    fig = make_daily_chart(prepared, code=code, bars=_DEFAULT_BARS, height=height)
+    _apply_review_labels(fig, code=code)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.write_image(str(output_path), format="jpg", width=width, height=height, scale=2)
     return output_path
