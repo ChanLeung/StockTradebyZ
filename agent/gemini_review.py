@@ -1,8 +1,9 @@
 """
 gemini_review.py
 ~~~~~~~~~~~~~~~~
-使用 Google Gemini 对候选股票进行图表分析评分。
-继承自 BaseReviewer 基础架构。
+兼容旧入口的买入图表复评脚本。
+当前默认行为已升级为 Gemini + ChatGPT 5.4 Pro 双模型加权评分，
+但仍保留 Gemini provider 类供内部复用。
 
 用法：
     python agent/gemini_review.py
@@ -13,6 +14,7 @@ gemini_review.py
 
 环境变量：
     GEMINI_API_KEY  —— Google Gemini API Key（必填）
+    OPENAI_API_KEY  —— OpenAI API Key（双模型加权必填）
 
 输出：
     ./data/review/{pick_date}/{code}.json   每支股票的评分 JSON
@@ -176,7 +178,7 @@ class GeminiReviewer(GeminiJsonReviewer):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Gemini 图表复评")
+    parser = argparse.ArgumentParser(description="买入图表复评（兼容旧 gemini_review 入口）")
     parser.add_argument(
         "--config",
         default=str(_DEFAULT_CONFIG_PATH),
@@ -184,8 +186,13 @@ def main():
     )
     args = parser.parse_args()
 
-    config = load_config(Path(args.config))
-    reviewer = GeminiReviewer(config)
+    try:
+        from agent.buy_review import BuyReviewer, load_buy_config
+    except ImportError:  # 兼容直接运行 python agent/gemini_review.py
+        from buy_review import BuyReviewer, load_buy_config
+
+    config = load_buy_config(Path(args.config))
+    reviewer = BuyReviewer(config)
     reviewer.run()
 
 

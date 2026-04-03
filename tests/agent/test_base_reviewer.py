@@ -27,6 +27,14 @@ class DummyReviewer(BaseReviewer):
         }
 
 
+class SuggestionReviewer(BaseReviewer):
+    review_type = "buy"
+
+    def review_stock(self, code: str, day_chart, prompt: str) -> dict:
+        _ = code, day_chart, prompt
+        raise NotImplementedError
+
+
 def test_load_review_universe_supports_candidate_run_payload(tmp_path):
     payload_path = tmp_path / "candidates.json"
     payload_path.write_text(
@@ -164,3 +172,52 @@ def test_reviewer_skips_when_existing_result_cache_key_matches(tmp_path):
     reviewer.run()
 
     assert reviewer.calls == 0
+
+
+def test_generate_suggestion_includes_model_scores_when_available():
+    reviewer = object.__new__(SuggestionReviewer)
+
+    suggestion = reviewer.generate_suggestion(
+        "2026-03-18",
+        [
+            {
+                "code": "600000",
+                "verdict": "PASS",
+                "total_score": 4.1,
+                "signal_type": "trend_start",
+                "comment": "趋势健康。",
+                "model_reviews": {
+                    "gemini": {"total_score": 4.3},
+                    "openai": {"total_score": 3.9},
+                },
+            }
+        ],
+        4.0,
+    )
+
+    recommendation = suggestion["recommendations"][0]
+    assert recommendation["total_score"] == 4.1
+    assert recommendation["gemini_score"] == 4.3
+    assert recommendation["openai_score"] == 3.9
+
+
+def test_generate_suggestion_keeps_legacy_shape_without_model_scores():
+    reviewer = object.__new__(SuggestionReviewer)
+
+    suggestion = reviewer.generate_suggestion(
+        "2026-03-18",
+        [
+            {
+                "code": "600000",
+                "verdict": "PASS",
+                "total_score": 4.1,
+                "signal_type": "trend_start",
+                "comment": "趋势健康。",
+            }
+        ],
+        4.0,
+    )
+
+    recommendation = suggestion["recommendations"][0]
+    assert "gemini_score" not in recommendation
+    assert "openai_score" not in recommendation

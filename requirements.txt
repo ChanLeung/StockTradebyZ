@@ -9,3 +9,4 @@ streamlit==1.55.0
 tqdm==4.67.3
 tushare==1.4.25
 google-genai>=1.30.0
+openai>=1.100.0

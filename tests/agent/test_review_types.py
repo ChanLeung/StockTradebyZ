@@ -2,7 +2,8 @@ from pathlib import Path
 
 from agent.buy_review import BuyReviewer, load_buy_config
 from agent.gemini_review import load_config
-from agent.review_types import parse_buy_review, parse_sell_review
+from agent.openai_review import OpenAIBuyReviewer
+from agent.review_types import aggregate_buy_model_results, map_buy_score_to_verdict, parse_buy_review, parse_sell_review
 from agent.sell_review import SellReviewer, load_sell_config
 
 
@@ -50,15 +51,179 @@ def test_legacy_gemini_config_defaults_to_buy_prompt():
     assert config["prompt_path"].name == "buy_prompt.md"
 
 
-def test_buy_reviewer_normalizes_buy_payload():
-    result = BuyReviewer.normalize_result(
-        {
-            "total_score": 4.2,
-            "verdict": "PASS",
-            "signal_type": "trend_start",
-            "comment": "趋势健康。",
-        },
+def test_buy_reviewer_keeps_full_model_payload_fields_under_model_reviews_only():
+    result = BuyReviewer.aggregate_reviews(
         code="600000",
+        model_results={
+            "gemini": {
+                "trend_reasoning": "趋势结构良好。",
+                "position_reasoning": "位置尚可。",
+                "volume_reasoning": "量价健康。",
+                "abnormal_move_reasoning": "前期异动明显。",
+                "signal_reasoning": "具备波段潜力。",
+                "scores": {
+                    "trend_structure": 4,
+                    "price_position": 4,
+                    "volume_behavior": 4,
+                    "previous_abnormal_move": 5,
+                },
+                "total_score": 4.3,
+                "verdict": "PASS",
+                "signal_type": "trend_start",
+                "comment": "趋势健康。",
+            },
+            "openai": {
+                "trend_reasoning": "趋势延续。",
+                "position_reasoning": "位置适中。",
+                "volume_reasoning": "量能平稳。",
+                "abnormal_move_reasoning": "异动清晰。",
+                "signal_reasoning": "仍有上涨空间。",
+                "scores": {
+                    "trend_structure": 4,
+                    "price_position": 4,
+                    "volume_behavior": 4,
+                    "previous_abnormal_move": 4,
+                },
+                "total_score": 4.3,
+                "verdict": "PASS",
+                "signal_type": "trend_start",
+                "comment": "结构稳定。",
+            },
+        },
+        weights={"gemini": 0.5, "openai": 0.5},
+    )
+
+    assert result["code"] == "600000"
+    assert result["total_score"] == 4.3
+    assert result["verdict"] == "PASS"
+    assert "trend_reasoning" not in result
+    assert "position_reasoning" not in result
+    assert "volume_reasoning" not in result
+    assert "abnormal_move_reasoning" not in result
+    assert "signal_reasoning" not in result
+    assert "scores" not in result
+    assert result["model_reviews"]["gemini"]["trend_reasoning"] == "趋势结构良好。"
+    assert result["model_reviews"]["gemini"]["position_reasoning"] == "位置尚可。"
+    assert result["model_reviews"]["gemini"]["volume_reasoning"] == "量价健康。"
+    assert result["model_reviews"]["gemini"]["abnormal_move_reasoning"] == "前期异动明显。"
+    assert result["model_reviews"]["gemini"]["signal_reasoning"] == "具备波段潜力。"
+    assert result["model_reviews"]["gemini"]["scores"]["previous_abnormal_move"] == 5
+    assert result["model_reviews"]["openai"]["comment"] == "结构稳定。"
+    assert result["ensemble"]["weights"]["gemini"] == 0.5
+
+
+def test_buy_reviewer_aggregates_equal_weight_scores_into_weighted_verdict():
+    result = BuyReviewer.aggregate_reviews(
+        code="600000",
+        model_results={
+            "gemini": {
+                "total_score": 4.0,
+                "verdict": "PASS",
+                "signal_type": "trend_start",
+                "comment": "Gemini 认为趋势仍强。",
+            },
+            "openai": {
+                "total_score": 3.6,
+                "verdict": "WATCH",
+                "signal_type": "trend_start",
+                "comment": "OpenAI 认为位置略高。",
+            },
+        },
+        weights={"gemini": 0.5, "openai": 0.5},
+    )
+
+    assert result["total_score"] == 3.8
+    assert result["verdict"] == "WATCH"
+    assert result["signal_type"] == "trend_start"
+    assert result["model_reviews"]["gemini"]["total_score"] == 4.0
+    assert result["model_reviews"]["openai"]["total_score"] == 3.6
+    assert result["ensemble"]["strategy"] == "weighted_average"
+
+
+def test_buy_reviewer_defaults_to_dual_model_provider_config():
+    config = load_buy_config()
+
+    assert config["providers"]["gemini"]["model"] == "gemini-3.1-flash-lite-preview"
+    assert config["providers"]["gemini"]["weight"] == 0.5
+    assert config["providers"]["openai"]["model"] == "gpt-5.4"
+    assert config["providers"]["openai"]["weight"] == 0.5
+    assert config["model"].startswith("ensemble:")
+
+
+def test_openai_buy_reviewer_supports_base_url_from_env(monkeypatch, tmp_path):
+    prompt_path = tmp_path / "prompt.md"
+    prompt_path.write_text("提示词", encoding="utf-8")
+    captured: dict = {}
+
+    class DummyClient:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setattr("agent.openai_review.OpenAI", DummyClient)
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://example.com/v1")
+
+    OpenAIBuyReviewer(
+        {
+            "candidates": tmp_path / "candidates.json",
+            "kline_dir": tmp_path / "kline",
+            "output_dir": tmp_path / "review",
+            "prompt_path": prompt_path,
+            "model": "gpt-5.4",
+        }
+    )
+
+    assert captured["api_key"] == "sk-test-key"
+    assert captured["base_url"] == "https://example.com/v1"
+
+
+def test_buy_score_to_verdict_uses_project_thresholds():
+    assert map_buy_score_to_verdict(4.0) == "PASS"
+    assert map_buy_score_to_verdict(3.2) == "WATCH"
+    assert map_buy_score_to_verdict(3.19) == "FAIL"
+
+
+def test_aggregate_buy_model_results_uses_higher_score_signal_type_when_models_disagree():
+    result = aggregate_buy_model_results(
+        code="600000",
+        model_results={
+            "gemini": {
+                "total_score": 4.4,
+                "verdict": "PASS",
+                "signal_type": "trend_start",
+                "comment": "Gemini 偏强。",
+            },
+            "openai": {
+                "total_score": 4.1,
+                "verdict": "PASS",
+                "signal_type": "reversal_setup",
+                "comment": "OpenAI 偏反转。",
+            },
+        },
+        weights={"gemini": 0.5, "openai": 0.5},
+    )
+
+    assert result["signal_type"] == "trend_start"
+
+
+def test_buy_reviewer_aggregate_returns_top_level_buy_payload():
+    result = BuyReviewer.aggregate_reviews(
+        code="600000",
+        model_results={
+            "gemini": {
+                "total_score": 4.2,
+                "verdict": "PASS",
+                "signal_type": "trend_start",
+                "comment": "趋势健康。",
+            },
+            "openai": {
+                "total_score": 4.2,
+                "verdict": "PASS",
+                "signal_type": "trend_start",
+                "comment": "走势稳健。",
+            },
+        },
+        weights={"gemini": 0.5, "openai": 0.5},
     )
 
     assert result["code"] == "600000"
@@ -66,37 +231,28 @@ def test_buy_reviewer_normalizes_buy_payload():
     assert result["verdict"] == "PASS"
 
 
-def test_buy_reviewer_keeps_full_model_payload_fields():
-    result = BuyReviewer.normalize_result(
-        {
-            "trend_reasoning": "趋势结构良好。",
-            "position_reasoning": "位置尚可。",
-            "volume_reasoning": "量价健康。",
-            "abnormal_move_reasoning": "前期异动明显。",
-            "signal_reasoning": "具备波段潜力。",
-            "scores": {
-                "trend_structure": 4,
-                "price_position": 4,
-                "volume_behavior": 4,
-                "previous_abnormal_move": 5,
-            },
-            "total_score": 4.3,
-            "verdict": "PASS",
-            "signal_type": "trend_start",
-            "comment": "趋势健康。",
-        },
+def test_buy_reviewer_aggregate_prefers_weighted_result_over_single_provider_verdict():
+    result = BuyReviewer.aggregate_reviews(
         code="600000",
+        model_results={
+            "gemini": {
+                "total_score": 4.1,
+                "verdict": "PASS",
+                "signal_type": "trend_start",
+                "comment": "略强。",
+            },
+            "openai": {
+                "total_score": 3.1,
+                "verdict": "FAIL",
+                "signal_type": "mixed",
+                "comment": "略弱。",
+            },
+        },
+        weights={"gemini": 0.5, "openai": 0.5},
     )
 
-    assert result["code"] == "600000"
-    assert result["total_score"] == 4.3
-    assert result["verdict"] == "PASS"
-    assert result["trend_reasoning"] == "趋势结构良好。"
-    assert result["position_reasoning"] == "位置尚可。"
-    assert result["volume_reasoning"] == "量价健康。"
-    assert result["abnormal_move_reasoning"] == "前期异动明显。"
-    assert result["signal_reasoning"] == "具备波段潜力。"
-    assert result["scores"]["previous_abnormal_move"] == 5
+    assert result["total_score"] == 3.6
+    assert result["verdict"] == "WATCH"
 
 
 def test_sell_reviewer_normalizes_sell_payload():

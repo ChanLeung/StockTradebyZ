@@ -108,14 +108,24 @@ class BaseReviewer:
         passed.sort(key=lambda r: r.get("total_score", 0), reverse=True)
 
         recommendations = [
-            {
+            (
+                {
                 "rank": i + 1,
                 "code": r["code"],
                 "verdict": r.get("verdict", ""),
                 "total_score": r.get("total_score", 0),
                 "signal_type": r.get("signal_type", ""),
                 "comment": r.get("comment", ""),
-            }
+                }
+                | (
+                    {
+                        "gemini_score": r.get("model_reviews", {}).get("gemini", {}).get("total_score"),
+                        "openai_score": r.get("model_reviews", {}).get("openai", {}).get("total_score"),
+                    }
+                    if "model_reviews" in r
+                    else {}
+                )
+            )
             for i, r in enumerate(passed)
         ]
 

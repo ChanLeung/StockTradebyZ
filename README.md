@@ -5,7 +5,7 @@
 - 使用 Tushare 拉取股票日线数据
 - 用量化规则做初选（目前只实现了B1选股）
 - 导出候选股票 K 线图
-- 调用 Gemini 对图表进行 AI 复评打分
+- 调用 Gemini + ChatGPT 5.4 对图表进行 AI 复评打分
 
 ---
 
@@ -24,7 +24,7 @@
 1. 下载 K 线数据（pipeline.fetch_kline）
 2. 量化初选（pipeline.cli preselect）
 3. 导出候选图表（dashboard/export_kline_charts.py）
-4. Gemini 复评（agent/gemini_review.py）
+4. 双模型复评（agent/gemini_review.py）
 5. 打印推荐结果（读取 suggestion.json）
 
 输出主链路：
@@ -41,7 +41,7 @@
 - [pipeline](pipeline)：数据抓取与量化初选
 - [dashboard](dashboard)：看盘界面与图表导出
 - [agent](agent)：LLM 评审逻辑（Gemini）
-- [config](config)：抓取、初选、Gemini 复评配置
+- [config](config)：抓取、初选、AI 复评配置
 - [data](data)：运行数据与结果
 - [run_all.py](run_all.py)：全流程一键入口
 
@@ -93,6 +93,8 @@ pytest tests -v
 ~~~dotenv
 TUSHARE_TOKEN=你的TushareToken
 GEMINI_API_KEY=你的GeminiApiKey
+OPENAI_API_KEY=你的OpenAIApiKey
+OPENAI_BASE_URL=https://你的OpenAI服务地址/v1
 ~~~
 
 macOS / Linux（每次新开终端后执行一次）：
@@ -176,7 +178,7 @@ python dashboard/export_kline_charts.py
 
 输出到 data/kline/选股日期，图像命名为 代码_day.jpg。
 
-### 步骤 4：Gemini 图表复评
+### 步骤 4：双模型图表复评
 
 ~~~bash
 python agent/gemini_review.py
@@ -194,6 +196,14 @@ python -m agent.sell_review --input data/backtest/quant_only/2026-03-17_2026-03-
 ~~~
 
 配置见 [config/gemini_review.yaml](config/gemini_review.yaml) 和 [config/gemini_sell_review.yaml](config/gemini_sell_review.yaml)。
+
+买入复评当前默认使用双模型 50/50 加权：
+
+- Gemini：`gemini-3.1-flash-lite-preview`
+- OpenAI：`gpt-5.4`
+
+OpenAI 模型名是可配置的；如果你的账号需要改成别的 GPT-5.4 变体，只需要修改 `config/gemini_review.yaml`。
+如果你使用代理或中转服务，也可以在 `.env` 里配置 `OPENAI_BASE_URL`，例如 `https://your-endpoint/v1`。
 
 其中卖出复评的 `candidates` 参数除了支持普通候选池 JSON，也支持直接指向回测产出的 `holdings_snapshot.json`，方便把当前持仓直接送入出场评估。
 
