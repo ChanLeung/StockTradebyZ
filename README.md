@@ -24,7 +24,7 @@
 1. 下载 K 线数据（pipeline.fetch_kline）
 2. 量化初选（pipeline.cli preselect）
 3. 导出候选图表（dashboard/export_kline_charts.py）
-4. 双模型复评（agent/gemini_review.py）
+4. 双模型复评（agent/buy_review.py）
 5. 打印推荐结果（读取 suggestion.json）
 
 输出主链路：
@@ -40,7 +40,7 @@
 
 - [pipeline](pipeline)：数据抓取与量化初选
 - [dashboard](dashboard)：看盘界面与图表导出
-- [agent](agent)：LLM 评审逻辑（Gemini）
+- [agent](agent)：LLM 评审逻辑（Gemini + OpenAI）
 - [config](config)：抓取、初选、AI 复评配置
 - [data](data)：运行数据与结果
 - [run_all.py](run_all.py)：全流程一键入口
@@ -117,6 +117,10 @@ Get-Content .env | ForEach-Object {
 
 `.env` 已在 `.gitignore` 中，默认不会被提交到仓库。
 
+当前项目入口脚本会自动尝试读取项目根目录的 `.env`，所以正常情况下直接运行
+`python run_all.py`、`python -m pipeline.fetch_kline`、`python -m agent.buy_review`
+或 `python -m agent.sell_review` 即可，无需手动先导出环境变量。
+
 ### 3.4 运行一键脚本
 
 在项目根目录执行：
@@ -168,6 +172,11 @@ python -m pipeline.cli preselect --date 2026-03-13
 python -m pipeline.cli preselect --config config/rules_preselect.yaml --data data/raw
 ~~~
 
+补充说明：
+
+- 若传入历史 `--date` 但未显式传 `--end-date`，CLI 会默认把 `end_date` 对齐到同一天，避免历史研究时误带入未来数据
+- 若你确实需要自定义截断日期，显式传入 `--end-date` 即可覆盖默认行为
+
 规则配置见 [config/rules_preselect.yaml](config/rules_preselect.yaml)。
 
 ### 步骤 3：导出候选图表
@@ -181,7 +190,6 @@ python dashboard/export_kline_charts.py
 ### 步骤 4：双模型图表复评
 
 ~~~bash
-python agent/gemini_review.py
 python -m agent.buy_review
 python -m agent.sell_review
 ~~~
@@ -189,23 +197,26 @@ python -m agent.sell_review
 可选参数示例：
 
 ~~~bash
-python agent/gemini_review.py --config config/gemini_review.yaml
+python -m agent.buy_review --config config/buy_review.yaml
 python -m agent.buy_review --input data/candidates/candidates_latest.json
-python -m agent.sell_review --config config/gemini_sell_review.yaml
+python -m agent.sell_review --config config/sell_review.yaml
 python -m agent.sell_review --input data/backtest/quant_only/2026-03-17_2026-03-17/holdings_snapshot.json
 ~~~
 
-配置见 [config/gemini_review.yaml](config/gemini_review.yaml) 和 [config/gemini_sell_review.yaml](config/gemini_sell_review.yaml)。
+配置见 [config/buy_review.yaml](config/buy_review.yaml) 和 [config/sell_review.yaml](config/sell_review.yaml)。
+旧命名 [config/gemini_review.yaml](config/gemini_review.yaml) 和 [config/gemini_sell_review.yaml](config/gemini_sell_review.yaml) 仍保留作兼容别名。
 
-买入复评当前默认使用双模型 50/50 加权：
+买入和卖出复评当前默认都使用双模型 50/50 加权：
 
 - Gemini：`gemini-3.1-flash-lite-preview`
 - OpenAI：`gpt-5.4`
 
-OpenAI 模型名是可配置的；如果你的账号需要改成别的 GPT-5.4 变体，只需要修改 `config/gemini_review.yaml`。
+OpenAI 模型名是可配置的；如果你的账号需要改成别的 GPT-5.4 变体，只需要修改 `config/buy_review.yaml` 或 `config/sell_review.yaml`。
 如果你使用代理或中转服务，也可以在 `.env` 里配置 `OPENAI_BASE_URL`，例如 `https://your-endpoint/v1`。
 
 其中卖出复评的 `candidates` 参数除了支持普通候选池 JSON，也支持直接指向回测产出的 `holdings_snapshot.json`，方便把当前持仓直接送入出场评估。
+
+如需兼容旧命令，`python agent/gemini_review.py` 仍可用，但它现在只是转发到 `python -m agent.buy_review` 的兼容包装器。
 
 读取候选与图表后，输出：
 
@@ -283,9 +294,10 @@ python run_all.py backtest --mode quant_only --start 2026-01-01 --end 2026-01-31
 
 ### 6.3 复评层
 
-在 [config/gemini_review.yaml](config/gemini_review.yaml) 中可调整：
+在 [config/buy_review.yaml](config/buy_review.yaml) 或 [config/sell_review.yaml](config/sell_review.yaml) 中可调整：
 
-- model：模型名称
+- providers.*.model：模型名称
+- providers.*.weight：模型权重
 - request_delay：调用间隔（防限流）
 - skip_existing：是否按缓存键断点续跑；只有 `review_type + model + 日期 + 股票 + prompt` 都一致时才复用旧结果
 - suggest_min_score：推荐分数门槛

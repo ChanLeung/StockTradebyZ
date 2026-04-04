@@ -1,199 +1,42 @@
 """
 gemini_review.py
 ~~~~~~~~~~~~~~~~
-兼容旧入口的买入图表复评脚本。
-当前默认行为已升级为 Gemini + ChatGPT 5.4 Pro 双模型加权评分，
-但仍保留 Gemini provider 类供内部复用。
+历史兼容入口。
 
-用法：
-    python agent/gemini_review.py
-    python agent/gemini_review.py --config config/gemini_review.yaml
+当前项目的真实买入复评入口已经迁移到：
 
-配置：
-    默认读取 config/gemini_review.yaml。
+    python -m agent.buy_review
 
-环境变量：
-    GEMINI_API_KEY  —— Google Gemini API Key（必填）
-    OPENAI_API_KEY  —— OpenAI API Key（双模型加权必填）
+本文件保留的目的：
 
-输出：
-    ./data/review/{pick_date}/{code}.json   每支股票的评分 JSON
-    ./data/review/{pick_date}/suggestion.json  汇总推荐建议
+- 兼容旧命令 `python agent/gemini_review.py`
+- 兼容旧导入路径
 """
 
-import argparse
-import os
-import sys
-from pathlib import Path
-from typing import Any
-
-from google import genai
-from google.genai import types
-import yaml
+from __future__ import annotations
 
 try:
-    from agent.base_reviewer import BaseReviewer
-    from agent.review_types import parse_buy_review
+    from agent.buy_review import main as _buy_review_main
+    from agent.gemini_provider import GeminiBuyReviewer, GeminiJsonReviewer, GeminiReviewer
+    from agent.review_config import BUY_REVIEW_CONFIG_PATH as _DEFAULT_CONFIG_PATH
+    from agent.review_config import _ROOT, load_review_config as _load_review_config
 except ImportError:  # 兼容直接运行 python agent/gemini_review.py
-    from base_reviewer import BaseReviewer
-    from review_types import parse_buy_review
-
-# ────────────────────────────────────────────────
-# 配置加载
-# ────────────────────────────────────────────────
-_ROOT = Path(__file__).resolve().parent.parent
-_DEFAULT_CONFIG_PATH = _ROOT / "config" / "gemini_review.yaml"
-
-DEFAULT_CONFIG: dict[str, Any] = {
-    # 路径参数（相对路径默认基于项目根目录）
-    "candidates": "data/candidates/candidates_latest.json",
-    "kline_dir": "data/kline",
-    "output_dir": "data/review",
-    "prompt_path": "agent/prompts/buy_prompt.md",
-    # Gemini 模型参数
-    # "model": "gemini-3.1-pro-preview",
-    "model": "gemini-3.1-flash-lite-preview",
-    "request_delay": 5,
-    "skip_existing": False,
-    "suggest_min_score": 4.0,
-}
+    from buy_review import main as _buy_review_main
+    from gemini_provider import GeminiBuyReviewer, GeminiJsonReviewer, GeminiReviewer
+    from review_config import BUY_REVIEW_CONFIG_PATH as _DEFAULT_CONFIG_PATH
+    from review_config import _ROOT, load_review_config as _load_review_config
 
 
-def _resolve_cfg_path(path_like: str | Path, base_dir: Path = _ROOT) -> Path:
-    p = Path(path_like)
-    return p if p.is_absolute() else (base_dir / p)
-
-
-def load_config(
-    config_path: Path | None = None,
-    *,
-    prompt_path: str | Path | None = None,
-    output_dir: str | Path | None = None,
-) -> dict[str, Any]:
-    cfg_path = config_path or _DEFAULT_CONFIG_PATH
-    if not cfg_path.exists():
-        raise FileNotFoundError(f"找不到配置文件：{cfg_path}")
-
-    with open(cfg_path, "r", encoding="utf-8") as f:
-        raw = yaml.safe_load(f) or {}
-
-    cfg = {**DEFAULT_CONFIG, **raw}
-    if prompt_path is not None:
-        cfg["prompt_path"] = str(prompt_path)
-    if output_dir is not None:
-        cfg["output_dir"] = str(output_dir)
-
-    # BaseReviewer 依赖这些路径字段为 Path 对象
-    cfg["candidates"] = _resolve_cfg_path(cfg["candidates"])
-    cfg["kline_dir"] = _resolve_cfg_path(cfg["kline_dir"])
-    cfg["output_dir"] = _resolve_cfg_path(cfg["output_dir"])
-    cfg["prompt_path"] = _resolve_cfg_path(cfg["prompt_path"])
-
-    return cfg
-
-
-class GeminiJsonReviewer(BaseReviewer):
-    review_type = "generic"
-    prompt_path = Path(__file__).resolve().parent / "prompts" / "buy_prompt.md"
-
-    def __init__(self, config):
-        super().__init__(config)
-
-        api_key = os.environ.get("GEMINI_API_KEY", "")
-        if not api_key:
-            print(
-                "[ERROR] 未找到环境变量 GEMINI_API_KEY，请先设置后重试。",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-
-        self.client = genai.Client(api_key=api_key)
-
-    @staticmethod
-    def image_to_part(path: Path) -> types.Part:
-        """将图片文件转为 Gemini Part 对象。"""
-        suffix = path.suffix.lower()
-        mime_map = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
-        mime_type = mime_map.get(suffix, "image/jpeg")
-        data = path.read_bytes()
-        return types.Part.from_bytes(data=data, mime_type=mime_type)
-
-    def build_user_text(self, code: str) -> str:
-        return (
-            f"股票代码：{code}\n\n"
-            "以下是该股票的 **日线图**，请按照系统提示中的框架进行分析，"
-            "并严格按照要求输出 JSON。"
-        )
-
-    @staticmethod
-    def normalize_result(payload: dict, *, code: str) -> dict:
-        result = dict(payload)
-        result["code"] = code
-        return result
-
-    def review_stock(self, code: str, day_chart: Path, prompt: str) -> dict:
-        """调用 Gemini API，对单支股票进行图表分析，返回解析后的 JSON 结果。"""
-        user_text = self.build_user_text(code)
-        parts: list[types.Part] = [
-            types.Part.from_text(text="【日线图】"),
-            self.image_to_part(day_chart),
-            types.Part.from_text(text=user_text),
-        ]
-
-        response = self.client.models.generate_content(
-            model=self.config.get("model", "gemini-3.1-pro-preview"),
-            contents=[types.Content(role="user", parts=parts)],
-            config=types.GenerateContentConfig(
-                system_instruction=prompt,
-                temperature=0.2,
-            ),
-        )
-
-        response_text = response.text
-        if response_text is None:
-            raise RuntimeError(f"Gemini 返回空响应，无法解析 JSON（code={code}）")
-
-        result = self.extract_json(response_text)
-        return self.normalize_result(result, code=code)
-
-
-class GeminiReviewer(GeminiJsonReviewer):
-    review_type = "buy"
-    prompt_path = Path(__file__).resolve().parent / "prompts" / "buy_prompt.md"
-
-    @staticmethod
-    def normalize_result(payload: dict, *, code: str) -> dict:
-        parsed = parse_buy_review(payload)
-        result = dict(payload)
-        result.update(
-            {
-                "code": code,
-                "total_score": parsed.total_score,
-                "verdict": parsed.verdict,
-                "signal_type": parsed.signal_type,
-                "comment": parsed.comment,
-            }
-        )
-        return result
-
-
-def main():
-    parser = argparse.ArgumentParser(description="买入图表复评（兼容旧 gemini_review 入口）")
-    parser.add_argument(
-        "--config",
-        default=str(_DEFAULT_CONFIG_PATH),
-        help="配置文件路径（默认 config/gemini_review.yaml）",
+def load_config(config_path=None, *, prompt_path=None, output_dir=None):
+    return _load_review_config(
+        config_path or _DEFAULT_CONFIG_PATH,
+        prompt_path=prompt_path,
+        output_dir=output_dir,
     )
-    args = parser.parse_args()
 
-    try:
-        from agent.buy_review import BuyReviewer, load_buy_config
-    except ImportError:  # 兼容直接运行 python agent/gemini_review.py
-        from buy_review import BuyReviewer, load_buy_config
 
-    config = load_buy_config(Path(args.config))
-    reviewer = BuyReviewer(config)
-    reviewer.run()
+def main() -> None:
+    _buy_review_main()
 
 
 if __name__ == "__main__":

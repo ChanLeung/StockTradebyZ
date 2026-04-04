@@ -43,17 +43,31 @@ def _add_log_file(log_dir: str, pick_date: str) -> None:
     logging.getLogger().addHandler(fh)
 
 
+def _resolve_preselect_end_date(args: argparse.Namespace) -> str | None:
+    """
+    历史日期回放时，若只传 --date 而未显式传 --end-date，
+    默认把 end_date 收紧到同一天，避免误用未来数据。
+    """
+    if args.end_date:
+        return args.end_date
+    if args.date:
+        logger.info("检测到历史选股日期 %s，未显式指定 end_date，默认使用同日截断数据。", args.date)
+        return args.date
+    return None
+
+
 # =============================================================================
 # preselect 子命令
 # =============================================================================
 
 def cmd_preselect(args: argparse.Namespace) -> None:
     logger.info("===== 量化初选开始 =====")
+    effective_end_date = _resolve_preselect_end_date(args)
 
     pick_ts, candidates = run_preselect(
         config_path=args.config or None,
         data_dir=args.data or None,
-        end_date=args.end_date or None,
+        end_date=effective_end_date,
         pick_date=args.date or None,
     )
 
@@ -71,6 +85,7 @@ def cmd_preselect(args: argparse.Namespace) -> None:
         meta={
             "config": args.config,
             "data_dir": args.data,
+            "end_date": effective_end_date,
             "total": len(candidates),
         },
     )

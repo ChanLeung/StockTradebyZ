@@ -6,19 +6,26 @@ from pathlib import Path
 from openai import OpenAI
 
 try:
+    from project_env import load_project_env
+except ImportError:  # 兼容直接运行 python agent/*.py
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from project_env import load_project_env
+
+try:
     from agent.base_reviewer import BaseReviewer
-    from agent.review_types import parse_buy_review
+    from agent.review_types import parse_buy_review, parse_sell_signal_review
 except ImportError:  # 兼容直接运行
     from base_reviewer import BaseReviewer
-    from review_types import parse_buy_review
+    from review_types import parse_buy_review, parse_sell_signal_review
 
 
-class OpenAIBuyReviewer(BaseReviewer):
-    review_type = "buy"
+class OpenAIJsonReviewer(BaseReviewer):
+    review_type = "generic"
     prompt_path = Path(__file__).resolve().parent / "prompts" / "buy_prompt.md"
 
     def __init__(self, config):
         super().__init__(config)
+        load_project_env()
 
         api_key = os.environ.get("OPENAI_API_KEY", "").strip()
         base_url = os.environ.get("OPENAI_BASE_URL", "").strip() or str(config.get("base_url", "")).strip()
@@ -55,17 +62,8 @@ class OpenAIBuyReviewer(BaseReviewer):
 
     @staticmethod
     def normalize_result(payload: dict, *, code: str) -> dict:
-        parsed = parse_buy_review(payload)
         result = dict(payload)
-        result.update(
-            {
-                "code": code,
-                "total_score": parsed.total_score,
-                "verdict": parsed.verdict,
-                "signal_type": parsed.signal_type,
-                "comment": parsed.comment,
-            }
-        )
+        result["code"] = code
         return result
 
     def review_stock(self, code: str, day_chart: Path, prompt: str) -> dict:
@@ -97,3 +95,43 @@ class OpenAIBuyReviewer(BaseReviewer):
 
         result = self.extract_json(response_text)
         return self.normalize_result(result, code=code)
+
+
+class OpenAIBuyReviewer(OpenAIJsonReviewer):
+    review_type = "buy"
+    prompt_path = Path(__file__).resolve().parent / "prompts" / "buy_prompt.md"
+
+    @staticmethod
+    def normalize_result(payload: dict, *, code: str) -> dict:
+        parsed = parse_buy_review(payload)
+        result = dict(payload)
+        result.update(
+            {
+                "code": code,
+                "total_score": parsed.total_score,
+                "verdict": parsed.verdict,
+                "signal_type": parsed.signal_type,
+                "comment": parsed.comment,
+            }
+        )
+        return result
+
+
+class OpenAISellReviewer(OpenAIJsonReviewer):
+    review_type = "sell"
+    prompt_path = Path(__file__).resolve().parent / "prompts" / "sell_prompt.md"
+
+    @staticmethod
+    def normalize_result(payload: dict, *, code: str) -> dict:
+        parsed = parse_sell_signal_review(payload)
+        result = dict(payload)
+        result.update(
+            {
+                "code": code,
+                "total_score": parsed.total_score,
+                "verdict": parsed.verdict,
+                "signal_type": parsed.signal_type,
+                "comment": parsed.comment,
+            }
+        )
+        return result

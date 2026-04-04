@@ -4,13 +4,15 @@ from pathlib import Path
 
 try:
     from agent.base_reviewer import BaseReviewer
-    from agent.gemini_review import GeminiReviewer, _ROOT, load_config
+    from agent.gemini_provider import GeminiBuyReviewer
     from agent.openai_review import OpenAIBuyReviewer
+    from agent.review_config import BUY_REVIEW_CONFIG_PATH, _ROOT, load_review_config
     from agent.review_types import aggregate_buy_model_results, parse_buy_review
 except ImportError:  # 兼容直接运行 python agent/buy_review.py
     from base_reviewer import BaseReviewer
-    from gemini_review import GeminiReviewer, _ROOT, load_config
+    from gemini_provider import GeminiBuyReviewer
     from openai_review import OpenAIBuyReviewer
+    from review_config import BUY_REVIEW_CONFIG_PATH, _ROOT, load_review_config
     from review_types import aggregate_buy_model_results, parse_buy_review
 
 
@@ -53,7 +55,7 @@ class BuyReviewer(BaseReviewer):
             provider_name: float(provider_cfg.get("weight", 0.0))
             for provider_name, provider_cfg in self.providers.items()
         }
-        self.gemini_reviewer = GeminiReviewer(self._build_provider_config("gemini"))
+        self.gemini_reviewer = GeminiBuyReviewer(self._build_provider_config("gemini"))
         self.openai_reviewer = OpenAIBuyReviewer(self._build_provider_config("openai"))
 
     def _build_provider_config(self, provider_name: str) -> dict:
@@ -103,8 +105,8 @@ def load_buy_config(
     *,
     candidates_path: Path | None = None,
 ) -> dict:
-    config = load_config(
-        config_path,
+    config = load_review_config(
+        config_path or BUY_REVIEW_CONFIG_PATH,
         prompt_path=str(BuyReviewer.prompt_path.relative_to(_ROOT)),
         output_dir="data/review",
     )
@@ -119,8 +121,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="双模型买入图表复评")
     parser.add_argument(
         "--config",
-        default=str(_ROOT / "config" / "gemini_review.yaml"),
-        help="配置文件路径（默认 config/gemini_review.yaml）",
+        default=str(BUY_REVIEW_CONFIG_PATH),
+        help="配置文件路径（默认 config/buy_review.yaml）",
     )
     parser.add_argument(
         "--input",

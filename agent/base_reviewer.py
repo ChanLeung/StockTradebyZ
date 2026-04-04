@@ -209,7 +209,16 @@ class BaseReviewer:
         with open(suggestion_file, "w", encoding="utf-8") as f:
             json.dump(suggestion, f, ensure_ascii=False, indent=2)
         print(f"[INFO] 汇总推荐已写入: {suggestion_file}")
-        print(f"       推荐股票数（score≥{min_score}）: {len(suggestion['recommendations'])}")
+        recommendation_count = 0
+        if isinstance(suggestion.get("recommendations"), list):
+            recommendation_count = len(suggestion["recommendations"])
+            print(f"       推荐股票数（score≥{min_score}）: {recommendation_count}")
+        elif isinstance(suggestion.get("sell_list"), list):
+            recommendation_count = len(suggestion["sell_list"])
+            print(f"       卖出信号数: {recommendation_count}")
+        elif isinstance(suggestion.get("reviews"), list):
+            recommendation_count = len(suggestion["reviews"])
+            print(f"       汇总条目数: {recommendation_count}")
 
-        print("\n✅ 全部完成。")
+        print("\n[OK] 全部完成。")
         print(f"   输出目录: {out_dir}")

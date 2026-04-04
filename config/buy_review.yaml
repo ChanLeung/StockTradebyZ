@@ -1,0 +1,20 @@
+# buy_review.yaml
+# 买入图表复评配置（相对路径基于项目根目录）
+
+candidates: data/candidates/candidates_latest.json
+kline_dir: data/kline
+output_dir: data/review
+prompt_path: agent/prompts/buy_prompt.md
+
+providers:
+  gemini:
+    model: gemini-3.1-flash-lite-preview
+    weight: 0.5
+  openai:
+    model: gpt-5.4
+    weight: 0.5
+    base_url: ""
+
+request_delay: 5
+skip_existing: false
+suggest_min_score: 4.0

@@ -6,7 +6,7 @@ run_all.py
   步骤 1  pipeline/fetch_kline.py   — 拉取最新 K 线数据
   步骤 2  pipeline/cli.py preselect — 量化初选，生成候选列表
   步骤 3  dashboard/export_kline_charts.py — 导出候选股 K 线图
-  步骤 4  agent/gemini_review.py    — 双模型图表分析评分
+  步骤 4  agent/buy_review.py       — 双模型图表分析评分
   步骤 5  打印推荐购买的股票
 
 用法：
@@ -22,6 +22,8 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+
+from project_env import load_project_env
 
 ROOT = Path(__file__).resolve().parent
 PYTHON = sys.executable  # 与当前进程同一个 Python 解释器
@@ -91,6 +93,8 @@ def _print_recommendations() -> None:
 
 
 def main() -> None:
+    load_project_env()
+
     if len(sys.argv) > 1 and sys.argv[1] == "backtest":
         _run(
             "回测（backtest.cli）",
@@ -138,8 +142,8 @@ def main() -> None:
     # ── 步骤 4：双模型图表分析 ──────────────────────────────────────
     if start <= 4:
         _run(
-            "4/4  双模型图表分析（gemini_review）",
-            [PYTHON, str(ROOT / "agent" / "gemini_review.py")],
+            "4/4  双模型图表分析（buy_review）",
+            [PYTHON, "-m", "agent.buy_review"],
         )
 
     # ── 步骤 5：打印推荐结果 ─────────────────────────────────────────

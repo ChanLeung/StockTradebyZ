@@ -364,6 +364,84 @@ risk_thresholds:
     assert bundle["benchmark_returns"].loc["2026-01-07", "ALLA"] == pytest.approx(0.1)
 
 
+def test_load_local_backtest_bundle_accepts_scored_sell_review_payload(tmp_path):
+    candidates_dir = tmp_path / "data" / "candidates"
+    raw_dir = tmp_path / "data" / "raw"
+    review_dir = tmp_path / "data" / "review" / "2026-01-06"
+    review_sell_dir = tmp_path / "data" / "review_sell" / "2026-01-06"
+    config_dir = tmp_path / "config"
+
+    candidates_dir.mkdir(parents=True)
+    raw_dir.mkdir(parents=True)
+    review_dir.mkdir(parents=True)
+    review_sell_dir.mkdir(parents=True)
+    config_dir.mkdir(parents=True)
+
+    (candidates_dir / "candidates_2026-01-06.json").write_text(
+        """{
+  "run_date": "2026-01-06",
+  "pick_date": "2026-01-06",
+  "candidates": [
+    {
+      "code": "600000",
+      "date": "2026-01-06",
+      "strategy": "b1",
+      "close": 10.5,
+      "turnover_n": 1000.0
+    }
+  ],
+  "meta": {}
+}""",
+        encoding="utf-8",
+    )
+    (raw_dir / "600000.csv").write_text(
+        """date,open,close,high,low,volume
+2026-01-06,10.2,10.5,10.6,10.1,1000
+2026-01-07,10.8,11.0,11.1,10.7,1100
+""",
+        encoding="utf-8",
+    )
+    (review_dir / "600000.json").write_text(
+        """{
+  "total_score": 4.6,
+  "verdict": "PASS",
+  "signal_type": "trend_start",
+  "comment": "趋势健康。"
+}""",
+        encoding="utf-8",
+    )
+    (review_sell_dir / "600000.json").write_text(
+        """{
+  "total_score": 4.2,
+  "verdict": "PASS",
+  "signal_type": "top_out",
+  "comment": "高位放量滞涨，兑现风险上升。"
+}""",
+        encoding="utf-8",
+    )
+    (config_dir / "reference_data.yaml").write_text(
+        """benchmark_priority:
+  - HS300
+  - CSI500
+  - CSI1000
+  - CSI2000
+  - ALLA
+""",
+        encoding="utf-8",
+    )
+
+    bundle = load_local_backtest_bundle(
+        tmp_path,
+        start="2026-01-06",
+        end="2026-01-07",
+        mode="quant_plus_ai",
+    )
+
+    assert bundle["sell_decisions"]["2026-01-06"]["600000"] == "sell"
+    assert bundle["sell_reviews"]["2026-01-06"]["600000"]["reasoning"] == "高位放量滞涨，兑现风险上升。"
+    assert bundle["sell_reviews"]["2026-01-06"]["600000"]["risk_flags"] == ["top_out"]
+
+
 def test_load_local_backtest_bundle_keeps_open_prices_for_tracked_holdings(tmp_path):
     candidates_dir = tmp_path / "data" / "candidates"
     raw_dir = tmp_path / "data" / "raw"

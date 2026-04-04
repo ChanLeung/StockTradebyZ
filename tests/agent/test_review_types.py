@@ -2,8 +2,15 @@ from pathlib import Path
 
 from agent.buy_review import BuyReviewer, load_buy_config
 from agent.gemini_review import load_config
-from agent.openai_review import OpenAIBuyReviewer
-from agent.review_types import aggregate_buy_model_results, map_buy_score_to_verdict, parse_buy_review, parse_sell_review
+from agent.openai_review import OpenAIBuyReviewer, OpenAISellReviewer
+from agent.review_types import (
+    aggregate_buy_model_results,
+    aggregate_sell_model_results,
+    map_buy_score_to_verdict,
+    parse_buy_review,
+    parse_sell_review,
+    parse_sell_signal_review,
+)
 from agent.sell_review import SellReviewer, load_sell_config
 
 
@@ -33,6 +40,22 @@ def test_parse_sell_review_requires_hold_or_sell():
 
     assert parsed.decision == "sell"
     assert parsed.risk_flags == ["trend_break"]
+
+
+def test_parse_sell_review_accepts_scored_payload_and_maps_to_legacy_contract():
+    parsed = parse_sell_review(
+        {
+            "total_score": 4.2,
+            "verdict": "PASS",
+            "signal_type": "top_out",
+            "comment": "高位放量滞涨，兑现风险上升。",
+        }
+    )
+
+    assert parsed.decision == "sell"
+    assert parsed.reasoning == "高位放量滞涨，兑现风险上升。"
+    assert parsed.risk_flags == ["top_out"]
+    assert parsed.confidence == 0.84
 
 
 def test_buy_and_sell_reviewers_use_expected_review_type():
@@ -177,6 +200,33 @@ def test_openai_buy_reviewer_supports_base_url_from_env(monkeypatch, tmp_path):
     assert captured["base_url"] == "https://example.com/v1"
 
 
+def test_openai_sell_reviewer_supports_base_url_from_env(monkeypatch, tmp_path):
+    prompt_path = tmp_path / "prompt.md"
+    prompt_path.write_text("提示词", encoding="utf-8")
+    captured: dict = {}
+
+    class DummyClient:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setattr("agent.openai_review.OpenAI", DummyClient)
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://example.com/v1")
+
+    OpenAISellReviewer(
+        {
+            "candidates": tmp_path / "candidates.json",
+            "kline_dir": tmp_path / "kline",
+            "output_dir": tmp_path / "review_sell",
+            "prompt_path": prompt_path,
+            "model": "gpt-5.4",
+        }
+    )
+
+    assert captured["api_key"] == "sk-test-key"
+    assert captured["base_url"] == "https://example.com/v1"
+
+
 def test_buy_score_to_verdict_uses_project_thresholds():
     assert map_buy_score_to_verdict(4.0) == "PASS"
     assert map_buy_score_to_verdict(3.2) == "WATCH"
@@ -258,17 +308,91 @@ def test_buy_reviewer_aggregate_prefers_weighted_result_over_single_provider_ver
 def test_sell_reviewer_normalizes_sell_payload():
     result = SellReviewer.normalize_result(
         {
-            "decision": "sell",
-            "reasoning": "趋势破坏。",
-            "risk_flags": ["trend_break"],
-            "confidence": 0.8,
+            "total_score": 4.3,
+            "verdict": "PASS",
+            "signal_type": "top_out",
+            "comment": "高位放量滞涨，兑现风险较强。",
         },
         code="600000",
     )
 
     assert result["code"] == "600000"
+    assert result["total_score"] == 4.3
+    assert result["verdict"] == "PASS"
+    assert result["signal_type"] == "top_out"
     assert result["decision"] == "sell"
-    assert result["risk_flags"] == ["trend_break"]
+    assert result["risk_flags"] == ["top_out"]
+    assert result["reasoning"] == "高位放量滞涨，兑现风险较强。"
+
+
+def test_parse_sell_signal_review_keeps_scored_fields():
+    parsed = parse_sell_signal_review(
+        {
+            "total_score": 3.7,
+            "verdict": "WATCH",
+            "signal_type": "weakening",
+            "comment": "趋势转弱但未到标准卖点。",
+        }
+    )
+
+    assert parsed.total_score == 3.7
+    assert parsed.verdict == "WATCH"
+    assert parsed.signal_type == "weakening"
+
+
+def test_sell_reviewer_aggregates_equal_weight_scores_into_weighted_sell_payload():
+    result = SellReviewer.aggregate_reviews(
+        code="600000",
+        model_results={
+            "gemini": {
+                "total_score": 4.2,
+                "verdict": "PASS",
+                "signal_type": "top_out",
+                "comment": "Gemini 认为高位兑现信号明确。",
+            },
+            "openai": {
+                "total_score": 3.4,
+                "verdict": "WATCH",
+                "signal_type": "weakening",
+                "comment": "OpenAI 认为趋势转弱但未完全见顶。",
+            },
+        },
+        weights={"gemini": 0.5, "openai": 0.5},
+    )
+
+    assert result["total_score"] == 3.8
+    assert result["verdict"] == "WATCH"
+    assert result["decision"] == "hold"
+    assert result["signal_type"] == "top_out"
+    assert result["risk_flags"] == ["top_out", "model_disagreement"]
+    assert result["ensemble"]["strategy"] == "weighted_average"
+
+
+def test_aggregate_sell_model_results_returns_top_level_compatibility_fields():
+    result = aggregate_sell_model_results(
+        code="600000",
+        model_results={
+            "gemini": {
+                "total_score": 4.4,
+                "verdict": "PASS",
+                "signal_type": "top_out",
+                "comment": "卖点较强。",
+            },
+            "openai": {
+                "total_score": 4.4,
+                "verdict": "PASS",
+                "signal_type": "top_out",
+                "comment": "兑现信号明确。",
+            },
+        },
+        weights={"gemini": 0.5, "openai": 0.5},
+    )
+
+    assert result["code"] == "600000"
+    assert result["decision"] == "sell"
+    assert result["reasoning"]
+    assert result["confidence"] == 0.88
+    assert result["model_reviews"]["openai"]["comment"] == "兑现信号明确。"
 
 
 def test_sell_reviewer_generates_hold_and_sell_summary():
@@ -277,20 +401,23 @@ def test_sell_reviewer_generates_hold_and_sell_summary():
     suggestion = reviewer.generate_suggestion(
         "2026-03-17",
         [
-            {"code": "600000", "decision": "hold", "confidence": 0.7},
-            {"code": "000001", "decision": "sell", "confidence": 0.8},
+            {"code": "600000", "decision": "hold", "verdict": "WATCH", "total_score": 3.5, "signal_type": "weakening", "comment": "继续观察。"},
+            {"code": "000001", "decision": "sell", "verdict": "PASS", "total_score": 4.3, "signal_type": "top_out", "comment": "卖出。"},
         ],
         0.0,
     )
 
     assert suggestion["hold_list"] == ["600000"]
     assert suggestion["sell_list"] == ["000001"]
+    assert suggestion["watch_list"] == ["600000"]
 
 
 def test_sell_config_uses_review_sell_output_dir():
     config = load_sell_config()
 
     assert config["output_dir"].name == "review_sell"
+    assert config["providers"]["openai"]["model"] == "gpt-5.4"
+    assert config["model"].startswith("ensemble:")
 
 
 def test_buy_config_uses_review_output_dir():
@@ -333,3 +460,18 @@ def test_buy_prompt_keeps_json_contract_and_detailed_scoring_rules():
     assert "强制推理步骤" in prompt_text
     assert "只能根据图中实际可见的信息" in prompt_text
     assert "周线趋势" in prompt_text
+
+
+def test_sell_prompt_keeps_json_contract_and_scoring_rules():
+    prompt_text = SellReviewer.prompt_path.read_text(encoding="utf-8")
+
+    assert "必须严格 JSON" in prompt_text
+    assert "total_score" in prompt_text
+    assert "verdict" in prompt_text
+    assert "signal_type" in prompt_text
+    assert "comment" in prompt_text
+    assert "趋势结构" in prompt_text
+    assert "价格位置结构" in prompt_text
+    assert "量价行为" in prompt_text
+    assert "前期拉升异动" in prompt_text
+    assert "强制推理步骤" in prompt_text

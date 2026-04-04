@@ -57,6 +57,12 @@ _pd.Series.fillna = _patched_series_fillna  # type: ignore[method-assign]
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _DEFAULT_LOG_DIR = _PROJECT_ROOT / "data" / "logs"
 
+try:
+    from project_env import load_project_env
+except ImportError:  # 兼容直接运行 python pipeline/fetch_kline.py
+    sys.path.insert(0, str(_PROJECT_ROOT))
+    from project_env import load_project_env
+
 def _resolve_cfg_path(path_like: str | Path, base_dir: Path = _PROJECT_ROOT) -> Path:
     """将配置中的路径统一解析为绝对路径：相对路径基于项目根目录。"""
     p = Path(path_like)
@@ -233,6 +239,8 @@ def _load_config(config_path: Path = _CONFIG_PATH) -> dict:
 
 # --------------------------- 主入口 --------------------------- #
 def main(log_path: Optional[Path] = None):
+    load_project_env()
+
     # ---------- 读取 YAML 配置 ---------- #
     cfg = _load_config()
 

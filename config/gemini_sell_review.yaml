@@ -1,5 +1,5 @@
 # gemini_sell_review.yaml
-# Gemini 卖出图表复评配置（相对路径基于项目根目录）
+# 兼容旧命名的卖出复评配置；推荐改用 config/sell_review.yaml
 # candidates 支持两种输入：
 # 1. 候选池文件 data/candidates/candidates_*.json
 # 2. 持仓快照文件 data/**/holdings_snapshot.json
@@ -9,6 +9,14 @@ kline_dir: data/kline
 output_dir: data/review_sell
 prompt_path: agent/prompts/sell_prompt.md
 
-model: gemini-3.1-flash-lite-preview
+providers:
+  gemini:
+    model: gemini-3.1-flash-lite-preview
+    weight: 0.5
+  openai:
+    model: gpt-5.4
+    weight: 0.5
+    base_url: ""
+
 request_delay: 5
 skip_existing: false
