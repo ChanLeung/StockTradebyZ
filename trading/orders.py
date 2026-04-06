@@ -1,6 +1,31 @@
 from trading.schemas import Order, TradeFill
 
 
+def calculate_buy_order_quantity(
+    *,
+    target_budget: float,
+    available_cash: float,
+    open_price: float,
+    cost_config: dict[str, float],
+    lot_size: int = 100,
+) -> int:
+    if lot_size <= 0 or open_price <= 0:
+        return 0
+
+    budget_cap = min(float(target_budget), float(available_cash))
+    if budget_cap <= 0:
+        return 0
+
+    commission_bps = float(cost_config.get("commission_bps", 0.0)) / 10000.0
+    slippage_bps = float(cost_config.get("slippage_bps", 0.0)) / 10000.0
+    effective_price = float(open_price) * (1.0 + slippage_bps) * (1.0 + commission_bps)
+    if effective_price <= 0:
+        return 0
+
+    max_lots = int(budget_cap // (effective_price * lot_size))
+    return max(max_lots, 0) * lot_size
+
+
 def simulate_open_fill(
     order: Order,
     *,

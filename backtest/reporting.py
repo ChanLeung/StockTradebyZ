@@ -90,6 +90,10 @@ def build_signal_sheet(result: BacktestResult) -> dict:
         "current_holdings": current_holdings,
         "next_holdings": next_holdings,
         "exposure_summary": _build_exposure_summary(current_holdings, next_holdings, buy_orders, sell_orders),
+        "buy_candidates_rejected_by_index_limit": list(result.last_buy_rejections.get("index_limit", [])),
+        "buy_candidates_rejected_by_industry_limit": list(result.last_buy_rejections.get("industry_limit", [])),
+        "replaceable_watch_list": list(result.last_replaceable_watch_list),
+        "cash_reserved_reason": result.last_cash_reserved_reason,
         "focus_review_list": focus_review_list,
         "focus_review_groups": _build_focus_review_groups(focus_review_list),
         "buy_list": buy_list,
@@ -342,6 +346,10 @@ def write_signal_sheet_csv(path: str | Path, signal_sheet: dict) -> None:
         "holding_days",
         "reasoning",
         "risk_flags",
+        "rejected_by_index_limit",
+        "rejected_by_industry_limit",
+        "replaceable_watch_list",
+        "cash_reserved_reason",
     ]
     rows = build_signal_sheet_action_rows(signal_sheet)
     with csv_path.open("w", encoding="utf-8", newline="") as fh:
@@ -375,6 +383,20 @@ def build_signal_sheet_review_markdown(signal_sheet: dict) -> str:
             "",
         ]
     )
+
+    lines.extend(
+        _build_constraint_and_cash_lines(
+            signal_sheet,
+            heading="## 补仓约束与留现金说明",
+            empty_text="暂无额外补仓约束说明。",
+        )
+    )
+    replaceable_watch_lines = _build_replaceable_watch_lines(
+        signal_sheet.get("replaceable_watch_list", []),
+        heading="## 可替换持仓",
+        empty_text="暂无可替换持仓。",
+    )
+    lines.extend(replaceable_watch_lines)
 
     for group in signal_sheet.get("focus_review_groups", []):
         items = group.get("items", [])
@@ -432,6 +454,14 @@ def build_signal_sheet_brief_markdown(
         signal_sheet.get("risk_brief") or "暂无风险摘要。",
         "",
     ]
+    lines.extend(
+        _build_constraint_and_cash_lines(
+            signal_sheet,
+            heading="## 补仓说明",
+            empty_text="暂无补仓说明。",
+            brief=True,
+        )
+    )
     top_actions = _build_brief_top_actions(
         group_lookup,
         limit=top_actions_limit,
@@ -536,6 +566,10 @@ def build_signal_sheet_action_rows(signal_sheet: dict) -> list[dict]:
     signal_date = signal_sheet.get("signal_date")
     trade_date = signal_sheet.get("trade_date")
     risk_mode = signal_sheet.get("risk_state", {}).get("mode")
+    rejected_by_index_limit = _format_code_list(signal_sheet.get("buy_candidates_rejected_by_index_limit", []))
+    rejected_by_industry_limit = _format_code_list(signal_sheet.get("buy_candidates_rejected_by_industry_limit", []))
+    replaceable_watch_list = _format_replaceable_watch_list(signal_sheet.get("replaceable_watch_list", []))
+    cash_reserved_reason = signal_sheet.get("cash_reserved_reason")
 
     for order in signal_sheet.get("sell_orders", []):
         rows.append(
@@ -556,6 +590,10 @@ def build_signal_sheet_action_rows(signal_sheet: dict) -> list[dict]:
                 "holding_days": order.get("holding_days"),
                 "reasoning": order.get("reasoning"),
                 "risk_flags": "|".join(order.get("risk_flags", [])),
+                "rejected_by_index_limit": rejected_by_index_limit,
+                "rejected_by_industry_limit": rejected_by_industry_limit,
+                "replaceable_watch_list": replaceable_watch_list,
+                "cash_reserved_reason": cash_reserved_reason,
             }
         )
 
@@ -578,7 +616,85 @@ def build_signal_sheet_action_rows(signal_sheet: dict) -> list[dict]:
                 "holding_days": order.get("holding_days"),
                 "reasoning": order.get("reasoning"),
                 "risk_flags": "|".join(order.get("risk_flags", [])),
+                "rejected_by_index_limit": rejected_by_index_limit,
+                "rejected_by_industry_limit": rejected_by_industry_limit,
+                "replaceable_watch_list": replaceable_watch_list,
+                "cash_reserved_reason": cash_reserved_reason,
             }
         )
 
     return rows
+
+
+def _build_constraint_and_cash_lines(
+    signal_sheet: dict,
+    *,
+    heading: str,
+    empty_text: str,
+    brief: bool = False,
+) -> list[str]:
+    index_limit = list(signal_sheet.get("buy_candidates_rejected_by_index_limit", []))
+    industry_limit = list(signal_sheet.get("buy_candidates_rejected_by_industry_limit", []))
+    cash_reserved_reason = signal_sheet.get("cash_reserved_reason")
+
+    lines = [heading]
+    if not index_limit and not industry_limit and not cash_reserved_reason:
+        lines.extend([empty_text, ""])
+        return lines
+
+    prefix = "- " if brief else "- "
+    if cash_reserved_reason:
+        lines.append(f"{prefix}留现金原因：{cash_reserved_reason}")
+    if index_limit:
+        label = "指数约束跳过" if brief else "指数约束拒绝"
+        lines.append(f"{prefix}{label}：{', '.join(index_limit)}")
+    if industry_limit:
+        label = "行业约束跳过" if brief else "行业约束拒绝"
+        lines.append(f"{prefix}{label}：{', '.join(industry_limit)}")
+    lines.append("")
+    return lines
+
+
+def _build_replaceable_watch_lines(
+    replaceable_watch_list: list[dict],
+    *,
+    heading: str,
+    empty_text: str,
+) -> list[str]:
+    lines = [heading]
+    if not replaceable_watch_list:
+        lines.extend([empty_text, ""])
+        return lines
+
+    for item in replaceable_watch_list:
+        lines.append(
+            f"- `{item.get('code')}` 当前状态 `{item.get('status')}`，持仓 {item.get('holding_days')} 天，卖出评分 `{item.get('sell_score')}`"
+        )
+        if item.get("reasoning"):
+            lines.append(f"  原因：{item.get('reasoning')}")
+        if item.get("replacement_code"):
+            lines.append(
+                f"  替换目标：`{item.get('replacement_code')}`（买入评分 `{item.get('replacement_score')}`）"
+            )
+        risk_flags = list(item.get("risk_flags", []))
+        if risk_flags:
+            lines.append(f"  风险标签：{' | '.join(risk_flags)}")
+    lines.append("")
+    return lines
+
+
+def _format_code_list(codes: list[str]) -> str:
+    return "|".join(str(code) for code in codes)
+
+
+def _format_replaceable_watch_list(items: list[dict]) -> str:
+    formatted_items: list[str] = []
+    for item in items:
+        code = str(item.get("code", ""))
+        status = str(item.get("status", "watch"))
+        replacement_code = item.get("replacement_code")
+        if replacement_code:
+            formatted_items.append(f"{code}:{status}->{replacement_code}")
+        else:
+            formatted_items.append(f"{code}:{status}")
+    return "|".join(formatted_items)

@@ -7,6 +7,7 @@ from agent.review_types import (
     aggregate_buy_model_results,
     aggregate_sell_model_results,
     map_buy_score_to_verdict,
+    map_sell_verdict_to_decision,
     parse_buy_review,
     parse_sell_review,
     parse_sell_signal_review,
@@ -56,6 +57,18 @@ def test_parse_sell_review_accepts_scored_payload_and_maps_to_legacy_contract():
     assert parsed.reasoning == "高位放量滞涨，兑现风险上升。"
     assert parsed.risk_flags == ["top_out"]
     assert parsed.confidence == 0.84
+
+
+def test_sell_pass_maps_to_sell():
+    assert map_sell_verdict_to_decision("PASS") == "sell"
+
+
+def test_sell_watch_maps_to_hold():
+    assert map_sell_verdict_to_decision("WATCH") == "hold"
+
+
+def test_sell_fail_maps_to_hold():
+    assert map_sell_verdict_to_decision("FAIL") == "hold"
 
 
 def test_buy_and_sell_reviewers_use_expected_review_type():

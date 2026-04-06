@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from pipeline.reference_io import load_index_membership, pick_primary_index
+from pipeline.reference_io import load_index_membership, load_stock_industry, pick_primary_index
 from pipeline.fetch_reference_data import load_reference_series
 from trading.benchmark import build_position_benchmark_weights, compute_dynamic_benchmark_return
 from trading.schemas import Position
@@ -43,6 +43,18 @@ def test_load_index_membership_reads_json_snapshot(tmp_path):
     mapping = load_index_membership(snapshot)
 
     assert mapping["600000"] == ["CSI1000", "HS300"]
+
+
+def test_load_stock_industry_reads_csv_snapshot(tmp_path):
+    snapshot = tmp_path / "stocklist.csv"
+    snapshot.write_text(
+        "ts_code,symbol,name,area,industry\n600000.SH,600000,浦发银行,上海,银行\n",
+        encoding="utf-8",
+    )
+
+    mapping = load_stock_industry(snapshot)
+
+    assert mapping["600000"] == "银行"
 
 
 def test_dynamic_benchmark_uses_position_weights():

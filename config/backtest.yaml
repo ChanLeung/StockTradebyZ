@@ -3,6 +3,14 @@ hold_limit_days: 15
 output_dir: data/backtest
 initial_cash: 1000000
 
+portfolio:
+  max_same_index: 4
+  max_same_industry: 2
+  max_daily_replacements: 3
+
+buy_rules:
+  min_buy_score: 4.0
+
 costs:
   commission_bps: 3
   stamp_duty_bps: 10

@@ -1,6 +1,6 @@
 import pytest
 
-from trading.orders import compute_trade_cash_effect, simulate_open_fill
+from trading.orders import calculate_buy_order_quantity, compute_trade_cash_effect, simulate_open_fill
 from trading.schemas import Order, TradeFill
 
 
@@ -66,3 +66,25 @@ def test_compute_trade_cash_effect_applies_sell_side_stamp_duty():
     )
 
     assert cash_effect == pytest.approx(998.5)
+
+
+def test_calculate_buy_order_quantity_uses_one_tenth_total_budget_and_rounds_down_to_lot():
+    quantity = calculate_buy_order_quantity(
+        target_budget=10000.0,
+        available_cash=100000.0,
+        open_price=11.0,
+        cost_config={},
+    )
+
+    assert quantity == 900
+
+
+def test_calculate_buy_order_quantity_is_limited_by_available_cash():
+    quantity = calculate_buy_order_quantity(
+        target_budget=10000.0,
+        available_cash=4500.0,
+        open_price=10.0,
+        cost_config={"commission_bps": 3, "slippage_bps": 2},
+    )
+
+    assert quantity == 400

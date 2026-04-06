@@ -44,6 +44,7 @@ def map_sell_score_to_verdict(score: float) -> str:
 
 
 def map_sell_verdict_to_decision(verdict: str) -> str:
+    # 卖出复评只有 PASS 才触发次日卖出，WATCH/FAIL 都继续持有。
     return "sell" if str(verdict).upper() == "PASS" else "hold"
 
 

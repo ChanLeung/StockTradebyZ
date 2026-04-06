@@ -17,7 +17,7 @@ from backtest.reporting import (
     write_signal_sheet_review_markdown,
 )
 from pipeline.fetch_reference_data import load_reference_series
-from pipeline.reference_io import load_index_membership, load_reference_config, pick_primary_index
+from pipeline.reference_io import load_index_membership, load_reference_config, load_stock_industry, pick_primary_index
 from pipeline.schemas import Candidate, CandidateRun
 from agent.review_types import parse_sell_review
 from trading.holdings_io import save_holdings_snapshot
@@ -34,9 +34,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", default="config/backtest.yaml", help="回测配置文件路径")
     parser.add_argument(
         "--mode",
-        default="quant_only",
+        default="quant_plus_ai",
         choices=["quant_only", "quant_plus_ai"],
-        help="运行模式：纯量化或量化 + AI",
+        help="运行模式：默认 quant_plus_ai；quant_only 仅内部调试",
     )
     parser.add_argument("--start", default="2026-01-01", help="开始日期 YYYY-MM-DD")
     parser.add_argument("--end", default="2026-01-31", help="结束日期 YYYY-MM-DD")
@@ -144,6 +144,7 @@ def load_local_backtest_bundle(
         ["HS300", "CSI500", "CSI1000", "CSI2000", "ALLA"],
     )
     membership = load_index_membership(reference_dir / "index_membership.json")
+    stock_to_industry = load_stock_industry(root / "pipeline" / "stocklist.csv")
 
     for candidate_file in candidate_files:
         run = CandidateRun.from_dict(json.loads(candidate_file.read_text(encoding="utf-8")))
@@ -180,10 +181,12 @@ def load_local_backtest_bundle(
                 membership,
                 benchmark_priority,
             )
-            sell_review = _load_sell_review(candidate.code, review_sell_dir / pick_date)
-            if sell_review is not None:
-                date_sell_decisions[candidate.code] = sell_review["decision"]
-                date_sell_reviews[candidate.code] = sell_review
+        for tracked_code in sorted(tracked_codes):
+            sell_review = _load_sell_review(tracked_code, review_sell_dir / pick_date)
+            if sell_review is None:
+                continue
+            date_sell_decisions[tracked_code] = sell_review["decision"]
+            date_sell_reviews[tracked_code] = sell_review
 
         if not enriched_candidates:
             continue
@@ -215,6 +218,7 @@ def load_local_backtest_bundle(
         "next_open_prices": next_open_prices,
         "signal_close_prices": signal_close_prices,
         "stock_to_index": stock_to_index,
+        "stock_to_industry": stock_to_industry,
         "sell_decisions": sell_decisions,
         "sell_reviews": sell_reviews,
         "risk_signals": risk_signals,
