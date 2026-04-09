@@ -1,8 +1,10 @@
 import base64
+import json
 import os
 import sys
 from pathlib import Path
 
+import requests
 from openai import OpenAI
 
 try:
@@ -36,6 +38,8 @@ class OpenAIJsonReviewer(BaseReviewer):
             )
             sys.exit(1)
 
+        self.api_key = api_key
+        self.base_url = (base_url or "https://api.openai.com/v1").rstrip("/")
         client_kwargs = {"api_key": api_key}
         if base_url:
             client_kwargs["base_url"] = base_url
@@ -60,17 +64,11 @@ class OpenAIJsonReviewer(BaseReviewer):
             "并严格按照要求输出 JSON。"
         )
 
-    @staticmethod
-    def normalize_result(payload: dict, *, code: str) -> dict:
-        result = dict(payload)
-        result["code"] = code
-        return result
-
-    def review_stock(self, code: str, day_chart: Path, prompt: str) -> dict:
-        response = self.client.responses.create(
-            model=self.config.get("model", "gpt-5.4"),
-            instructions=prompt,
-            input=[
+    def build_request_payload(self, *, code: str, day_chart: Path, prompt: str) -> dict:
+        return {
+            "model": self.config.get("model", "gpt-5.4"),
+            "instructions": prompt,
+            "input": [
                 {
                     "role": "user",
                     "content": [
@@ -86,12 +84,54 @@ class OpenAIJsonReviewer(BaseReviewer):
                     ],
                 }
             ],
-            temperature=0.2,
+            "temperature": 0.2,
+        }
+    
+    def stream_response_text(self, request_payload: dict, *, code: str) -> str:
+        response = requests.post(
+            f"{self.base_url}/responses",
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            },
+            json={**request_payload, "stream": True},
+            stream=True,
+            timeout=int(self.config.get("stream_timeout", 300)),
         )
+        response.raise_for_status()
+
+        parts: list[str] = []
+        for line in response.iter_lines(decode_unicode=False):
+            if not line or not line.startswith(b"data: "):
+                continue
+            data = line[6:]
+            if data == b"[DONE]":
+                break
+            try:
+                event = json.loads(data.decode("utf-8"))
+            except json.JSONDecodeError:
+                continue
+            if event.get("type") == "response.output_text.delta":
+                parts.append(event.get("delta", ""))
+
+        response_text = "".join(parts).strip()
+        if not response_text:
+            raise RuntimeError(f"OpenAI 流式回退后仍未返回正文，无法解析 JSON（code={code}）")
+        return response_text
+
+    @staticmethod
+    def normalize_result(payload: dict, *, code: str) -> dict:
+        result = dict(payload)
+        result["code"] = code
+        return result
+
+    def review_stock(self, code: str, day_chart: Path, prompt: str) -> dict:
+        request_payload = self.build_request_payload(code=code, day_chart=day_chart, prompt=prompt)
+        response = self.client.responses.create(**request_payload)
 
         response_text = response.output_text
-        if response_text is None:
-            raise RuntimeError(f"OpenAI 返回空响应，无法解析 JSON（code={code}）")
+        if not str(response_text or "").strip():
+            response_text = self.stream_response_text(request_payload, code=code)
 
         result = self.extract_json(response_text)
         return self.normalize_result(result, code=code)
