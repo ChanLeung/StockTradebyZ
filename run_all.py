@@ -122,7 +122,7 @@ def resolve_holdings_snapshot(root: Path = ROOT, explicit_path: str | None = Non
     ]
     if not candidates:
         return None
-    return max(candidates, key=lambda path: path.stat().st_mtime)
+    return max(candidates, key=lambda path: (path.stat().st_mtime, str(path)))
 
 
 def _run(step_name: str, cmd: list[str]) -> None:

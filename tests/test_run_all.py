@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -123,6 +124,17 @@ def test_resolve_holdings_snapshot_uses_explicit_path(tmp_path):
     assert resolved == holdings_path
 
 
+def test_resolve_holdings_snapshot_uses_relative_explicit_path(tmp_path):
+    holdings_path = _write_holdings(tmp_path / "relative" / "holdings_snapshot.json")
+
+    resolved = run_all.resolve_holdings_snapshot(
+        tmp_path,
+        explicit_path="relative/holdings_snapshot.json",
+    )
+
+    assert resolved == holdings_path
+
+
 def test_resolve_holdings_snapshot_fails_for_missing_explicit_path(tmp_path):
     missing_path = tmp_path / "missing.json"
 
@@ -139,12 +151,29 @@ def test_resolve_holdings_snapshot_finds_latest_backtest_snapshot(tmp_path):
         tmp_path / "data" / "backtest" / "quant_plus_ai" / "new" / "holdings_snapshot.json",
         as_of_date="2026-04-24",
     )
-    old_path.touch()
-    new_path.touch()
+    os.utime(old_path, (1000, 1000))
+    os.utime(new_path, (2000, 2000))
 
     resolved = run_all.resolve_holdings_snapshot(tmp_path)
 
     assert resolved == new_path
+
+
+def test_resolve_holdings_snapshot_breaks_mtime_ties_by_path(tmp_path, monkeypatch):
+    low_path = _write_holdings(
+        tmp_path / "data" / "backtest" / "quant_plus_ai" / "aaa" / "holdings_snapshot.json"
+    )
+    high_path = _write_holdings(
+        tmp_path / "data" / "backtest" / "quant_plus_ai" / "zzz" / "holdings_snapshot.json"
+    )
+    os.utime(low_path, (1000, 1000))
+    os.utime(high_path, (1000, 1000))
+
+    monkeypatch.setattr(Path, "glob", lambda self, pattern: iter([low_path, high_path]))
+
+    resolved = run_all.resolve_holdings_snapshot(tmp_path)
+
+    assert resolved == high_path
 
 
 def test_resolve_holdings_snapshot_returns_none_when_not_found(tmp_path):
