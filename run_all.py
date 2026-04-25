@@ -125,6 +125,64 @@ def resolve_holdings_snapshot(root: Path = ROOT, explicit_path: str | None = Non
     return max(candidates, key=lambda path: (path.stat().st_mtime, str(path)))
 
 
+def ensure_daily_signal_inputs(root: Path, pick_date: str) -> None:
+    candidates_path = root / "data" / "candidates" / f"candidates_{pick_date}.json"
+    suggestion_path = root / "data" / "review" / pick_date / "suggestion.json"
+
+    if not candidates_path.exists():
+        print(f"[ERROR] 找不到当日候选文件，无法生成执行信号单：{candidates_path}")
+        raise SystemExit(1)
+    if not suggestion_path.exists():
+        print(f"[ERROR] 找不到当日买入建议，无法生成执行信号单：{suggestion_path}")
+        raise SystemExit(1)
+
+
+def build_signal_brief_path(root: Path, pick_date: str) -> Path:
+    return (
+        root
+        / "data"
+        / "backtest"
+        / "quant_plus_ai"
+        / f"{pick_date}_{pick_date}"
+        / "signal_sheet_brief.md"
+    )
+
+
+def print_signal_brief_summary(brief_path: Path) -> None:
+    if not brief_path.exists():
+        print(f"[WARN] 未找到次日执行卡片摘要：{brief_path}")
+        return
+
+    text = brief_path.read_text(encoding="utf-8")
+    lines = text.splitlines()
+    key_prefixes = (
+        "- 信号日期：",
+        "- 执行日期：",
+        "- 风险模式：",
+        "- 当前/目标仓位：",
+    )
+
+    print(f"\n{'='*60}")
+    print("[步骤] 次日执行卡片")
+    print(f"  路径：{brief_path}")
+    print(f"{'='*60}")
+
+    for line in lines:
+        if line.startswith(key_prefixes):
+            print(line.removeprefix("- "))
+
+    in_top_actions = False
+    for line in lines:
+        if line.startswith("## Top 5 重点动作"):
+            print("\nTop 5 重点动作")
+            in_top_actions = True
+            continue
+        if in_top_actions and line.startswith("## "):
+            break
+        if in_top_actions and line.strip():
+            print(line)
+
+
 def _run(step_name: str, cmd: list[str]) -> None:
     """运行子进程，失败时终止整个流程。"""
     print(f"\n{'='*60}")
@@ -188,6 +246,91 @@ def _print_recommendations() -> None:
     print(f"\n✅ 推荐购买 {len(recommendations)} 只股票（详见 {suggestion_file}）")
 
 
+def run_daily_loop(
+    args: argparse.Namespace,
+    *,
+    root: Path = ROOT,
+    python: str = PYTHON,
+    run_step: StepRunner = _run,
+    print_recommendations: Callable[[], None] = _print_recommendations,
+    print_signal_summary: Callable[[Path], None] | None = None,
+) -> None:
+    start = args.start_from
+
+    if args.skip_fetch and start == 1:
+        start = 2
+
+    # ── 步骤 1：拉取 K 线数据 ─────────────────────────────────────────
+    if start <= 1:
+        run_step(
+            "1/4  拉取 K 线数据（fetch_kline）",
+            [python, "-m", "pipeline.fetch_kline"],
+        )
+
+    # ── 步骤 2：量化初选 ─────────────────────────────────────────────
+    if start <= 2:
+        run_step(
+            "2/4  量化初选（cli preselect）",
+            [python, "-m", "pipeline.cli", "preselect"],
+        )
+
+    # ── 步骤 3：导出 K 线图 ──────────────────────────────────────────
+    if start <= 3:
+        run_step(
+            "3/4  导出 K 线图（export_kline_charts）",
+            [python, str(root / "dashboard" / "export_kline_charts.py")],
+        )
+
+    # ── 步骤 4：双模型图表分析 ──────────────────────────────────────
+    if start <= 4:
+        run_step(
+            "4/4  双模型图表分析（buy_review）",
+            [python, "-m", "agent.buy_review"],
+        )
+
+    # ── 步骤 5：打印推荐结果 ─────────────────────────────────────────
+    print(f"\n{'='*60}")
+    print("[步骤] 5/7  推荐购买的股票")
+    print_recommendations()
+
+    pick_date = load_latest_pick_date(root)
+    holdings_path = resolve_holdings_snapshot(root, args.holdings)
+
+    # ── 步骤 6：持仓卖出复评 ─────────────────────────────────────────
+    if args.skip_sell_review:
+        print("[步骤] 6/7  已跳过持仓卖出复评。")
+    elif holdings_path is None:
+        print("[步骤] 6/7  未找到持仓快照，跳过持仓卖出复评。")
+    else:
+        run_step(
+            "6/7  持仓卖出复评（sell_review）",
+            [python, "-m", "agent.sell_review", "--input", str(holdings_path)],
+        )
+
+    if args.skip_backtest_signal:
+        print("[步骤] 7/7  已跳过次日执行信号单生成。")
+        return
+
+    # ── 步骤 7：单日回测生成次日执行信号单 ───────────────────────────
+    ensure_daily_signal_inputs(root, pick_date)
+    run_step(
+        "7/7  生成次日执行信号单（backtest.cli）",
+        [
+            python,
+            "-m",
+            "backtest.cli",
+            "--mode",
+            "quant_plus_ai",
+            "--start",
+            pick_date,
+            "--end",
+            pick_date,
+        ],
+    )
+    signal_brief_path = build_signal_brief_path(root, pick_date)
+    (print_signal_summary or print_signal_brief_summary)(signal_brief_path)
+
+
 def main() -> None:
     load_project_env()
 
@@ -201,43 +344,7 @@ def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
-    start = args.start_from
-    
-    if args.skip_fetch and start == 1:
-        start = 2
-
-    # ── 步骤 1：拉取 K 线数据 ─────────────────────────────────────────
-    if start <= 1:
-        _run(
-            "1/4  拉取 K 线数据（fetch_kline）",
-            [PYTHON, "-m", "pipeline.fetch_kline"],
-        )
-
-    # ── 步骤 2：量化初选 ─────────────────────────────────────────────
-    if start <= 2:
-        _run(
-            "2/4  量化初选（cli preselect）",
-            [PYTHON, "-m", "pipeline.cli", "preselect"],
-        )
-
-    # ── 步骤 3：导出 K 线图 ──────────────────────────────────────────
-    if start <= 3:
-        _run(
-            "3/4  导出 K 线图（export_kline_charts）",
-            [PYTHON, str(ROOT / "dashboard" / "export_kline_charts.py")],
-        )
-
-    # ── 步骤 4：双模型图表分析 ──────────────────────────────────────
-    if start <= 4:
-        _run(
-            "4/4  双模型图表分析（buy_review）",
-            [PYTHON, "-m", "agent.buy_review"],
-        )
-
-    # ── 步骤 5：打印推荐结果 ─────────────────────────────────────────
-    print(f"\n{'='*60}")
-    print("[步骤] 5/5  推荐购买的股票")
-    _print_recommendations()
+    run_daily_loop(args)
 
 
 if __name__ == "__main__":

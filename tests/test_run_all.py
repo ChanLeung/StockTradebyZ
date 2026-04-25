@@ -198,3 +198,155 @@ def test_main_routes_backtest_before_daily_parser(monkeypatch):
             [run_all.PYTHON, "-m", "backtest.cli", "--start", "2026-01-01"],
         )
     ]
+
+
+class StepRecorder:
+    def __init__(self):
+        self.calls = []
+
+    def __call__(self, step_name: str, cmd: list[str]) -> None:
+        self.calls.append((step_name, cmd))
+
+
+def _write_candidates_latest(root: Path, pick_date: str = "2026-04-24") -> None:
+    candidates_dir = root / "data" / "candidates"
+    candidates_dir.mkdir(parents=True, exist_ok=True)
+    (candidates_dir / "candidates_latest.json").write_text(
+        json.dumps({"pick_date": pick_date, "candidates": []}),
+        encoding="utf-8",
+    )
+    (candidates_dir / f"candidates_{pick_date}.json").write_text(
+        json.dumps({"pick_date": pick_date, "candidates": []}),
+        encoding="utf-8",
+    )
+
+
+def _write_suggestion(root: Path, pick_date: str = "2026-04-24") -> None:
+    review_dir = root / "data" / "review" / pick_date
+    review_dir.mkdir(parents=True, exist_ok=True)
+    (review_dir / "suggestion.json").write_text(
+        json.dumps({"date": pick_date, "recommendations": []}),
+        encoding="utf-8",
+    )
+
+
+def test_run_daily_loop_without_holdings_skips_sell_review(tmp_path, capsys):
+    _write_candidates_latest(tmp_path)
+    _write_suggestion(tmp_path)
+    recorder = StepRecorder()
+    parser = run_all.build_parser()
+    args = parser.parse_args(["--skip-fetch"])
+
+    run_all.run_daily_loop(
+        args,
+        root=tmp_path,
+        python="python",
+        run_step=recorder,
+        print_recommendations=lambda: None,
+        print_signal_summary=lambda path: None,
+    )
+
+    commands = [" ".join(cmd) for _, cmd in recorder.calls]
+    assert "python -m pipeline.fetch_kline" not in commands
+    assert any("python -m pipeline.cli preselect" == command for command in commands)
+    assert any("python -m agent.buy_review" == command for command in commands)
+    assert not any("agent.sell_review" in command for command in commands)
+    assert any("python -m backtest.cli --mode quant_plus_ai --start 2026-04-24 --end 2026-04-24" == command for command in commands)
+    captured = capsys.readouterr()
+    assert "未找到持仓快照" in captured.out
+
+
+def test_run_daily_loop_with_holdings_runs_sell_review(tmp_path):
+    _write_candidates_latest(tmp_path)
+    _write_suggestion(tmp_path)
+    holdings_path = _write_holdings(tmp_path / "holdings_snapshot.json")
+    recorder = StepRecorder()
+    parser = run_all.build_parser()
+    args = parser.parse_args(["--skip-fetch", "--holdings", str(holdings_path)])
+
+    run_all.run_daily_loop(
+        args,
+        root=tmp_path,
+        python="python",
+        run_step=recorder,
+        print_recommendations=lambda: None,
+        print_signal_summary=lambda path: None,
+    )
+
+    commands = [" ".join(cmd) for _, cmd in recorder.calls]
+    assert any(f"python -m agent.sell_review --input {holdings_path}" == command for command in commands)
+
+
+def test_run_daily_loop_skip_sell_review_never_runs_sell_review(tmp_path):
+    _write_candidates_latest(tmp_path)
+    _write_suggestion(tmp_path)
+    holdings_path = _write_holdings(tmp_path / "holdings_snapshot.json")
+    recorder = StepRecorder()
+    parser = run_all.build_parser()
+    args = parser.parse_args(["--skip-fetch", "--holdings", str(holdings_path), "--skip-sell-review"])
+
+    run_all.run_daily_loop(
+        args,
+        root=tmp_path,
+        python="python",
+        run_step=recorder,
+        print_recommendations=lambda: None,
+        print_signal_summary=lambda path: None,
+    )
+
+    commands = [" ".join(cmd) for _, cmd in recorder.calls]
+    assert not any("agent.sell_review" in command for command in commands)
+
+
+def test_ensure_daily_signal_inputs_requires_dated_candidates(tmp_path):
+    _write_suggestion(tmp_path)
+
+    with pytest.raises(SystemExit):
+        run_all.ensure_daily_signal_inputs(tmp_path, "2026-04-24")
+
+
+def test_ensure_daily_signal_inputs_requires_suggestion(tmp_path):
+    _write_candidates_latest(tmp_path)
+    suggestion_path = tmp_path / "data" / "review" / "2026-04-24" / "suggestion.json"
+    if suggestion_path.exists():
+        suggestion_path.unlink()
+
+    with pytest.raises(SystemExit):
+        run_all.ensure_daily_signal_inputs(tmp_path, "2026-04-24")
+
+
+def test_build_signal_brief_path_uses_quant_plus_ai_daily_output(tmp_path):
+    path = run_all.build_signal_brief_path(tmp_path, "2026-04-24")
+
+    assert path == (
+        tmp_path
+        / "data"
+        / "backtest"
+        / "quant_plus_ai"
+        / "2026-04-24_2026-04-24"
+        / "signal_sheet_brief.md"
+    )
+
+
+def test_print_signal_brief_summary_prints_path_and_key_sections(tmp_path, capsys):
+    brief_path = tmp_path / "signal_sheet_brief.md"
+    brief_path.write_text(
+        "# 盘前执行卡片\n\n"
+        "- 信号日期：2026-04-24\n"
+        "- 执行日期：2026-04-27\n"
+        "- 风险模式：normal\n"
+        "- 当前/目标仓位：2 -> 3\n\n"
+        "## Top 5 重点动作\n"
+        "- 买入 600000\n\n"
+        "## 新开仓（1）\n"
+        "- 600000\n",
+        encoding="utf-8",
+    )
+
+    run_all.print_signal_brief_summary(brief_path)
+
+    output = capsys.readouterr().out
+    assert "次日执行卡片" in output
+    assert str(brief_path) in output
+    assert "信号日期：2026-04-24" in output
+    assert "买入 600000" in output
