@@ -1,5 +1,5 @@
 import json
-from pathlib import Path
+import sys
 
 import pytest
 
@@ -41,7 +41,15 @@ def test_load_latest_pick_date_reads_candidates_latest(tmp_path):
     assert run_all.load_latest_pick_date(tmp_path) == "2026-04-24"
 
 
-def test_load_latest_pick_date_fails_when_missing_pick_date(tmp_path):
+def test_load_latest_pick_date_fails_when_candidates_latest_missing(tmp_path, capsys):
+    with pytest.raises(SystemExit) as exc_info:
+        run_all.load_latest_pick_date(tmp_path)
+
+    assert exc_info.value.code == 1
+    assert "找不到 candidates_latest.json" in capsys.readouterr().out
+
+
+def test_load_latest_pick_date_fails_when_missing_pick_date(tmp_path, capsys):
     candidates_dir = tmp_path / "data" / "candidates"
     candidates_dir.mkdir(parents=True)
     (candidates_dir / "candidates_latest.json").write_text(
@@ -49,8 +57,11 @@ def test_load_latest_pick_date_fails_when_missing_pick_date(tmp_path):
         encoding="utf-8",
     )
 
-    with pytest.raises(SystemExit):
+    with pytest.raises(SystemExit) as exc_info:
         run_all.load_latest_pick_date(tmp_path)
+
+    assert exc_info.value.code == 1
+    assert "未设置 pick_date" in capsys.readouterr().out
 
 
 def test_validate_holdings_snapshot_accepts_snapshot_file(tmp_path):
@@ -76,3 +87,34 @@ def test_validate_holdings_snapshot_rejects_invalid_file(tmp_path):
     holdings_path.write_text(json.dumps({"bad": "shape"}), encoding="utf-8")
 
     assert run_all.validate_holdings_snapshot(holdings_path) is False
+
+
+def test_validate_holdings_snapshot_rejects_missing_file(tmp_path):
+    assert run_all.validate_holdings_snapshot(tmp_path / "holdings_snapshot.json") is False
+
+
+def test_validate_holdings_snapshot_rejects_json_decode_error(tmp_path):
+    holdings_path = tmp_path / "holdings_snapshot.json"
+    holdings_path.write_text("{bad json", encoding="utf-8")
+
+    assert run_all.validate_holdings_snapshot(holdings_path) is False
+
+
+def test_main_routes_backtest_before_daily_parser(monkeypatch):
+    calls = []
+
+    def fake_run(step_name, cmd):
+        calls.append((step_name, cmd))
+
+    monkeypatch.setattr(run_all, "load_project_env", lambda: None)
+    monkeypatch.setattr(run_all, "_run", fake_run)
+    monkeypatch.setattr(sys, "argv", ["run_all.py", "backtest", "--start", "2026-01-01"])
+
+    run_all.main()
+
+    assert calls == [
+        (
+            "回测（backtest.cli）",
+            [run_all.PYTHON, "-m", "backtest.cli", "--start", "2026-01-01"],
+        )
+    ]
