@@ -9,6 +9,7 @@ __pycache__/
 .vscode/
 .worktrees/
 data/
+tmp/
 
 # Virtual environments
 .venv/

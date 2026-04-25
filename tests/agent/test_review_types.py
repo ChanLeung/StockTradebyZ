@@ -141,7 +141,9 @@ def test_buy_reviewer_keeps_full_model_payload_fields_under_model_reviews_only()
     assert result["model_reviews"]["gemini"]["trend_reasoning"] == "趋势结构良好。"
     assert result["model_reviews"]["gemini"]["position_reasoning"] == "位置尚可。"
     assert result["model_reviews"]["gemini"]["volume_reasoning"] == "量价健康。"
-    assert result["model_reviews"]["gemini"]["abnormal_move_reasoning"] == "前期异动明显。"
+    assert (
+        result["model_reviews"]["gemini"]["abnormal_move_reasoning"] == "前期异动明显。"
+    )
     assert result["model_reviews"]["gemini"]["signal_reasoning"] == "具备波段潜力。"
     assert result["model_reviews"]["gemini"]["scores"]["previous_abnormal_move"] == 5
     assert result["model_reviews"]["openai"]["comment"] == "结构稳定。"
@@ -414,8 +416,22 @@ def test_sell_reviewer_generates_hold_and_sell_summary():
     suggestion = reviewer.generate_suggestion(
         "2026-03-17",
         [
-            {"code": "600000", "decision": "hold", "verdict": "WATCH", "total_score": 3.5, "signal_type": "weakening", "comment": "继续观察。"},
-            {"code": "000001", "decision": "sell", "verdict": "PASS", "total_score": 4.3, "signal_type": "top_out", "comment": "卖出。"},
+            {
+                "code": "600000",
+                "decision": "hold",
+                "verdict": "WATCH",
+                "total_score": 3.5,
+                "signal_type": "weakening",
+                "comment": "继续观察。",
+            },
+            {
+                "code": "000001",
+                "decision": "sell",
+                "verdict": "PASS",
+                "total_score": 4.3,
+                "signal_type": "top_out",
+                "comment": "卖出。",
+            },
         ],
         0.0,
     )

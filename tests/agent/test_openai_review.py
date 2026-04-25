@@ -5,7 +5,9 @@ import agent.openai_review as openai_review
 from agent.openai_review import OpenAIBuyReviewer
 
 
-def test_openai_buy_reviewer_falls_back_to_stream_when_output_text_is_empty(monkeypatch, tmp_path):
+def test_openai_buy_reviewer_falls_back_to_stream_when_output_text_is_empty(
+    monkeypatch, tmp_path
+):
     prompt_path = tmp_path / "prompt.md"
     prompt_path.write_text("提示词", encoding="utf-8")
     chart_path = tmp_path / "600000_day.jpg"
@@ -32,8 +34,14 @@ def test_openai_buy_reviewer_falls_back_to_stream_when_output_text_is_empty(monk
             events = [
                 {"type": "response.output_text.delta", "delta": '{"total_score": 4.2,'},
                 {"type": "response.output_text.delta", "delta": ' "verdict": "PASS",'},
-                {"type": "response.output_text.delta", "delta": ' "signal_type": "trend_start",'},
-                {"type": "response.output_text.delta", "delta": ' "comment": "趋势健康。"}'},
+                {
+                    "type": "response.output_text.delta",
+                    "delta": ' "signal_type": "trend_start",',
+                },
+                {
+                    "type": "response.output_text.delta",
+                    "delta": ' "comment": "趋势健康。"}',
+                },
             ]
             for event in events:
                 yield f"data: {json.dumps(event, ensure_ascii=False)}".encode("utf-8")

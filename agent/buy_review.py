@@ -80,7 +80,9 @@ class BuyReviewer(BaseReviewer):
         return result
 
     @staticmethod
-    def aggregate_reviews(code: str, model_results: dict[str, dict], weights: dict[str, float]) -> dict:
+    def aggregate_reviews(
+        code: str, model_results: dict[str, dict], weights: dict[str, float]
+    ) -> dict:
         return aggregate_buy_model_results(
             code=code,
             model_results=model_results,
@@ -88,8 +90,12 @@ class BuyReviewer(BaseReviewer):
         )
 
     def review_stock(self, code: str, day_chart: Path, prompt: str) -> dict:
-        gemini_result = self.gemini_reviewer.review_stock(code=code, day_chart=day_chart, prompt=prompt)
-        openai_result = self.openai_reviewer.review_stock(code=code, day_chart=day_chart, prompt=prompt)
+        gemini_result = self.gemini_reviewer.review_stock(
+            code=code, day_chart=day_chart, prompt=prompt
+        )
+        openai_result = self.openai_reviewer.review_stock(
+            code=code, day_chart=day_chart, prompt=prompt
+        )
         return self.aggregate_reviews(
             code=code,
             model_results={

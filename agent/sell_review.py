@@ -40,7 +40,9 @@ DEFAULT_SELL_PROVIDERS = {
 }
 
 
-def _merge_sell_providers(raw_providers: dict | None, fallback_gemini_model: str | None = None) -> dict[str, dict]:
+def _merge_sell_providers(
+    raw_providers: dict | None, fallback_gemini_model: str | None = None
+) -> dict[str, dict]:
     providers = deepcopy(DEFAULT_SELL_PROVIDERS)
     if fallback_gemini_model:
         providers["gemini"]["model"] = str(fallback_gemini_model)
@@ -79,7 +81,9 @@ def _normalize_sell_payload(payload: dict, *, code: str) -> dict:
                 )
             ),
             "confidence": float(
-                payload.get("confidence", derive_sell_confidence(parsed.total_score, decision))
+                payload.get(
+                    "confidence", derive_sell_confidence(parsed.total_score, decision)
+                )
             ),
         }
     )
@@ -127,7 +131,9 @@ class SellReviewer(BaseReviewer):
         return _normalize_sell_payload(payload, code=code)
 
     @staticmethod
-    def aggregate_reviews(code: str, model_results: dict[str, dict], weights: dict[str, float]) -> dict:
+    def aggregate_reviews(
+        code: str, model_results: dict[str, dict], weights: dict[str, float]
+    ) -> dict:
         return aggregate_sell_model_results(
             code=code,
             model_results=model_results,
@@ -135,8 +141,12 @@ class SellReviewer(BaseReviewer):
         )
 
     def review_stock(self, code: str, day_chart: Path, prompt: str) -> dict:
-        gemini_result = self.gemini_reviewer.review_stock(code=code, day_chart=day_chart, prompt=prompt)
-        openai_result = self.openai_reviewer.review_stock(code=code, day_chart=day_chart, prompt=prompt)
+        gemini_result = self.gemini_reviewer.review_stock(
+            code=code, day_chart=day_chart, prompt=prompt
+        )
+        openai_result = self.openai_reviewer.review_stock(
+            code=code, day_chart=day_chart, prompt=prompt
+        )
         return self.aggregate_reviews(
             code=code,
             model_results={
@@ -146,12 +156,28 @@ class SellReviewer(BaseReviewer):
             weights=self.weights,
         )
 
-    def generate_suggestion(self, pick_date: str, all_results: list[dict], min_score: float) -> dict:
+    def generate_suggestion(
+        self, pick_date: str, all_results: list[dict], min_score: float
+    ) -> dict:
         _ = min_score
-        ordered_results = sorted(all_results, key=lambda result: result.get("total_score", 0.0), reverse=True)
-        hold_list = [result["code"] for result in ordered_results if result.get("decision") == "hold"]
-        sell_list = [result["code"] for result in ordered_results if result.get("decision") == "sell"]
-        watch_list = [result["code"] for result in ordered_results if result.get("verdict") == "WATCH"]
+        ordered_results = sorted(
+            all_results, key=lambda result: result.get("total_score", 0.0), reverse=True
+        )
+        hold_list = [
+            result["code"]
+            for result in ordered_results
+            if result.get("decision") == "hold"
+        ]
+        sell_list = [
+            result["code"]
+            for result in ordered_results
+            if result.get("decision") == "sell"
+        ]
+        watch_list = [
+            result["code"]
+            for result in ordered_results
+            if result.get("verdict") == "WATCH"
+        ]
         return {
             "date": pick_date,
             "total_reviewed": len(ordered_results),
@@ -168,8 +194,12 @@ class SellReviewer(BaseReviewer):
                     "comment": result.get("comment"),
                     **(
                         {
-                            "gemini_score": result.get("model_reviews", {}).get("gemini", {}).get("total_score"),
-                            "openai_score": result.get("model_reviews", {}).get("openai", {}).get("total_score"),
+                            "gemini_score": result.get("model_reviews", {})
+                            .get("gemini", {})
+                            .get("total_score"),
+                            "openai_score": result.get("model_reviews", {})
+                            .get("openai", {})
+                            .get("total_score"),
                         }
                         if "model_reviews" in result
                         else {}

@@ -35,6 +35,28 @@ class SuggestionReviewer(BaseReviewer):
         raise NotImplementedError
 
 
+class FlakyReviewer(BaseReviewer):
+    review_type = "buy"
+
+    def __init__(self, config, *, failures_before_success: dict[str, int]):
+        super().__init__(config)
+        self.failures_before_success = dict(failures_before_success)
+        self.calls_by_code: dict[str, int] = {}
+
+    def review_stock(self, code: str, day_chart, prompt: str) -> dict:
+        _ = day_chart, prompt
+        self.calls_by_code[code] = self.calls_by_code.get(code, 0) + 1
+        if self.calls_by_code[code] <= self.failures_before_success.get(code, 0):
+            raise RuntimeError(f"{code} transient failure")
+        return {
+            "code": code,
+            "verdict": "PASS",
+            "total_score": 4.1,
+            "signal_type": "trend_start",
+            "comment": "ok",
+        }
+
+
 def test_load_review_universe_supports_candidate_run_payload(tmp_path):
     payload_path = tmp_path / "candidates.json"
     payload_path.write_text(
@@ -221,3 +243,85 @@ def test_generate_suggestion_keeps_legacy_shape_without_model_scores():
     recommendation = suggestion["recommendations"][0]
     assert "gemini_score" not in recommendation
     assert "openai_score" not in recommendation
+
+
+def test_reviewer_retries_failed_codes_after_finishing_initial_batch(tmp_path):
+    prompt_path = tmp_path / "prompt.md"
+    prompt_path.write_text("买入复评提示词", encoding="utf-8")
+    candidates_path = tmp_path / "candidates.json"
+    candidates_path.write_text(
+        json.dumps(
+            {
+                "pick_date": "2026-03-18",
+                "candidates": [{"code": "600000"}, {"code": "000001"}],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    kline_dir = tmp_path / "kline" / "2026-03-18"
+    kline_dir.mkdir(parents=True)
+    (kline_dir / "600000_day.png").write_text("fake", encoding="utf-8")
+    (kline_dir / "000001_day.png").write_text("fake", encoding="utf-8")
+    output_dir = tmp_path / "review"
+
+    reviewer = FlakyReviewer(
+        {
+            "candidates": candidates_path,
+            "kline_dir": tmp_path / "kline",
+            "output_dir": output_dir,
+            "prompt_path": prompt_path,
+            "request_delay": 0,
+            "retry_failed_rounds": 3,
+            "model": "test-model",
+        },
+        failures_before_success={"600000": 1},
+    )
+
+    reviewer.run()
+
+    assert reviewer.calls_by_code == {"600000": 2, "000001": 1}
+    assert (output_dir / "2026-03-18" / "600000.json").exists()
+    suggestion = json.loads((output_dir / "2026-03-18" / "suggestion.json").read_text(encoding="utf-8"))
+    assert suggestion["total_reviewed"] == 2
+
+
+def test_reviewer_skips_code_after_three_failed_retry_rounds(tmp_path):
+    prompt_path = tmp_path / "prompt.md"
+    prompt_path.write_text("买入复评提示词", encoding="utf-8")
+    candidates_path = tmp_path / "candidates.json"
+    candidates_path.write_text(
+        json.dumps(
+            {
+                "pick_date": "2026-03-18",
+                "candidates": [{"code": "600000"}, {"code": "000001"}],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    kline_dir = tmp_path / "kline" / "2026-03-18"
+    kline_dir.mkdir(parents=True)
+    (kline_dir / "600000_day.png").write_text("fake", encoding="utf-8")
+    (kline_dir / "000001_day.png").write_text("fake", encoding="utf-8")
+    output_dir = tmp_path / "review"
+
+    reviewer = FlakyReviewer(
+        {
+            "candidates": candidates_path,
+            "kline_dir": tmp_path / "kline",
+            "output_dir": output_dir,
+            "prompt_path": prompt_path,
+            "request_delay": 0,
+            "retry_failed_rounds": 3,
+            "model": "test-model",
+        },
+        failures_before_success={"600000": 99},
+    )
+
+    reviewer.run()
+
+    assert reviewer.calls_by_code == {"600000": 4, "000001": 1}
+    assert not (output_dir / "2026-03-18" / "600000.json").exists()
+    suggestion = json.loads((output_dir / "2026-03-18" / "suggestion.json").read_text(encoding="utf-8"))
+    assert suggestion["total_reviewed"] == 1

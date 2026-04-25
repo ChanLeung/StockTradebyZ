@@ -101,6 +101,21 @@ class BaseReviewer:
         """子类需实现此方法，调用具体的 LLM 进行打分，并返回 JSON 解析字典。"""
         raise NotImplementedError("子类必须实现 review_stock 方法")
 
+    def review_and_save_stock(self, *, pick_date: str, code: str, out_file: Path) -> dict:
+        day_chart = self.find_chart_images(pick_date, code)
+        if day_chart is None:
+            raise FileNotFoundError(f"{code} 缺少日线图")
+
+        result = self.review_stock(
+            code=code,
+            day_chart=day_chart,
+            prompt=self.prompt,
+        )
+        result = self.attach_result_meta(result, pick_date=pick_date, code=code)
+        with open(out_file, "w", encoding="utf-8") as f:
+            json.dump(result, f, ensure_ascii=False, indent=2)
+        return result
+
     def generate_suggestion(self, pick_date: str, all_results: List[dict], min_score: float) -> dict:
         passed = [r for r in all_results if r.get("total_score", 0) >= min_score]
         excluded = [r["code"] for r in all_results if r.get("total_score", 0) < min_score]
@@ -162,23 +177,14 @@ class BaseReviewer:
                     continue
                 print(f"[{i}/{len(candidates)}] {code} — 缓存失效，重新分析。")
 
-            day_chart = self.find_chart_images(pick_date, code)
-            if day_chart is None:
-                print(f"[{i}/{len(candidates)}] {code} — 缺少日线图，跳过。")
-                failed_codes.append(code)
-                continue
-
             print(f"[{i}/{len(candidates)}] {code} — 正在分析 ...", end=" ", flush=True)
 
             try:
-                result = self.review_stock(
+                result = self.review_and_save_stock(
+                    pick_date=pick_date,
                     code=code,
-                    day_chart=day_chart,
-                    prompt=self.prompt,
+                    out_file=out_file,
                 )
-                result = self.attach_result_meta(result, pick_date=pick_date, code=code)
-                with open(out_file, "w", encoding="utf-8") as f:
-                    json.dump(result, f, ensure_ascii=False, indent=2)
                 all_results.append(result)
                 verdict = result.get("verdict", "?")
                 score = result.get("total_score", "?")
@@ -189,6 +195,34 @@ class BaseReviewer:
 
             if i < len(candidates):
                 time.sleep(self.config.get("request_delay", 5))
+
+        retry_rounds = int(self.config.get("retry_failed_rounds", 0) or 0)
+        for retry_round in range(1, retry_rounds + 1):
+            if not failed_codes:
+                break
+
+            retry_codes = failed_codes
+            failed_codes = []
+            print(f"\n[INFO] 开始第 {retry_round}/{retry_rounds} 轮失败股票重试：{retry_codes}")
+            for i, code in enumerate(retry_codes, 1):
+                out_file = out_dir / f"{code}.json"
+                print(f"[重试 {retry_round}.{i}/{len(retry_codes)}] {code} — 正在分析 ...", end=" ", flush=True)
+                try:
+                    result = self.review_and_save_stock(
+                        pick_date=pick_date,
+                        code=code,
+                        out_file=out_file,
+                    )
+                    all_results.append(result)
+                    verdict = result.get("verdict", "?")
+                    score = result.get("total_score", "?")
+                    print(f"完成 — verdict={verdict}, score={score}")
+                except Exception as e:
+                    print(f"失败 — {e}")
+                    failed_codes.append(code)
+
+                if i < len(retry_codes):
+                    time.sleep(self.config.get("request_delay", 5))
 
         print(f"\n[INFO] 评分完成：成功 {len(all_results)} 支，失败/跳过 {len(failed_codes)} 支")
         if failed_codes:

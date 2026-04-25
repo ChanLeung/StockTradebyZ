@@ -17,4 +17,5 @@ providers:
 
 request_delay: 5
 skip_existing: false
+retry_failed_rounds: 3
 suggest_min_score: 4.0

@@ -30,7 +30,10 @@ class OpenAIJsonReviewer(BaseReviewer):
         load_project_env()
 
         api_key = os.environ.get("OPENAI_API_KEY", "").strip()
-        base_url = os.environ.get("OPENAI_BASE_URL", "").strip() or str(config.get("base_url", "")).strip()
+        base_url = (
+            os.environ.get("OPENAI_BASE_URL", "").strip()
+            or str(config.get("base_url", "")).strip()
+        )
         if not api_key:
             print(
                 "[ERROR] 未找到环境变量 OPENAI_API_KEY，请先设置后重试。",
@@ -86,7 +89,7 @@ class OpenAIJsonReviewer(BaseReviewer):
             ],
             "temperature": 0.2,
         }
-    
+
     def stream_response_text(self, request_payload: dict, *, code: str) -> str:
         response = requests.post(
             f"{self.base_url}/responses",
@@ -116,7 +119,9 @@ class OpenAIJsonReviewer(BaseReviewer):
 
         response_text = "".join(parts).strip()
         if not response_text:
-            raise RuntimeError(f"OpenAI 流式回退后仍未返回正文，无法解析 JSON（code={code}）")
+            raise RuntimeError(
+                f"OpenAI 流式回退后仍未返回正文，无法解析 JSON（code={code}）"
+            )
         return response_text
 
     @staticmethod
@@ -126,7 +131,9 @@ class OpenAIJsonReviewer(BaseReviewer):
         return result
 
     def review_stock(self, code: str, day_chart: Path, prompt: str) -> dict:
-        request_payload = self.build_request_payload(code=code, day_chart=day_chart, prompt=prompt)
+        request_payload = self.build_request_payload(
+            code=code, day_chart=day_chart, prompt=prompt
+        )
         response = self.client.responses.create(**request_payload)
 
         response_text = response.output_text
