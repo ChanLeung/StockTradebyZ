@@ -21,12 +21,85 @@ import argparse
 import json
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 from project_env import load_project_env
 
 ROOT = Path(__file__).resolve().parent
 PYTHON = sys.executable  # 与当前进程同一个 Python 解释器
+StepRunner = Callable[[str, list[str]], None]
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="AgentTrader 日常交易闭环自动运行脚本")
+    parser.add_argument(
+        "--skip-fetch",
+        action="store_true",
+        help="跳过步骤 1（行情下载），直接从初选开始",
+    )
+    parser.add_argument(
+        "--start-from",
+        type=int,
+        default=1,
+        metavar="N",
+        help="从第 N 步开始执行（1~7），跳过前面的步骤",
+    )
+    parser.add_argument(
+        "--holdings",
+        default=None,
+        help="当前持仓快照路径，用于卖出复评",
+    )
+    parser.add_argument(
+        "--skip-sell-review",
+        action="store_true",
+        help="跳过持仓卖出复评，只生成买入建议",
+    )
+    parser.add_argument(
+        "--skip-backtest-signal",
+        action="store_true",
+        help="跳过次日执行信号单生成",
+    )
+    parser.add_argument(
+        "--allow-empty-holdings",
+        action="store_true",
+        help="没有持仓快照时继续执行，按空仓处理",
+    )
+    return parser
+
+
+def load_latest_pick_date(root: Path = ROOT) -> str:
+    candidates_file = root / "data" / "candidates" / "candidates_latest.json"
+    if not candidates_file.exists():
+        print(f"[ERROR] 找不到 candidates_latest.json：{candidates_file}")
+        raise SystemExit(1)
+
+    with candidates_file.open(encoding="utf-8") as f:
+        pick_date = str(json.load(f).get("pick_date", "")).strip()
+
+    if not pick_date:
+        print("[ERROR] candidates_latest.json 中未设置 pick_date。")
+        raise SystemExit(1)
+    return pick_date
+
+
+def validate_holdings_snapshot(path: Path) -> bool:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+
+    if not isinstance(payload, dict):
+        return False
+    if not payload.get("as_of_date"):
+        return False
+    state = payload.get("state")
+    if not isinstance(state, dict):
+        return False
+    positions = state.get("positions")
+    if not isinstance(positions, list):
+        return False
+    return all(isinstance(item, dict) and item.get("code") for item in positions)
 
 
 def _run(step_name: str, cmd: list[str]) -> None:
@@ -102,15 +175,7 @@ def main() -> None:
         )
         return
 
-    parser = argparse.ArgumentParser(description="AgentTrader 全流程自动运行脚本")
-    parser.add_argument(
-        "--skip-fetch", action="store_true",
-        help="跳过步骤 1（行情下载），直接从初选开始",
-    )
-    parser.add_argument(
-        "--start-from", type=int, default=1, metavar="N",
-        help="从第 N 步开始执行（1~4），跳过前面的步骤",
-    )
+    parser = build_parser()
     args = parser.parse_args()
 
     start = args.start_from
