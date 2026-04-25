@@ -102,6 +102,29 @@ def validate_holdings_snapshot(path: Path) -> bool:
     return all(isinstance(item, dict) and item.get("code") for item in positions)
 
 
+def resolve_holdings_snapshot(root: Path = ROOT, explicit_path: str | None = None) -> Path | None:
+    if explicit_path:
+        holdings_path = Path(explicit_path)
+        if not holdings_path.is_absolute():
+            holdings_path = root / holdings_path
+        if not holdings_path.exists():
+            print(f"[ERROR] 指定的持仓快照不存在：{holdings_path}")
+            raise SystemExit(1)
+        if not validate_holdings_snapshot(holdings_path):
+            print(f"[ERROR] 指定的持仓快照格式不正确：{holdings_path}")
+            raise SystemExit(1)
+        return holdings_path
+
+    candidates = [
+        path
+        for path in (root / "data" / "backtest").glob("**/holdings_snapshot.json")
+        if validate_holdings_snapshot(path)
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda path: path.stat().st_mtime)
+
+
 def _run(step_name: str, cmd: list[str]) -> None:
     """运行子进程，失败时终止整个流程。"""
     print(f"\n{'='*60}")

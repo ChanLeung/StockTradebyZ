@@ -1,5 +1,6 @@
 import json
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -98,6 +99,56 @@ def test_validate_holdings_snapshot_rejects_json_decode_error(tmp_path):
     holdings_path.write_text("{bad json", encoding="utf-8")
 
     assert run_all.validate_holdings_snapshot(holdings_path) is False
+
+
+def _write_holdings(path: Path, *, as_of_date: str = "2026-04-24") -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "as_of_date": as_of_date,
+                "state": {"cash": 1000000.0, "positions": [{"code": "600000"}]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_resolve_holdings_snapshot_uses_explicit_path(tmp_path):
+    holdings_path = _write_holdings(tmp_path / "custom" / "holdings_snapshot.json")
+
+    resolved = run_all.resolve_holdings_snapshot(tmp_path, explicit_path=str(holdings_path))
+
+    assert resolved == holdings_path
+
+
+def test_resolve_holdings_snapshot_fails_for_missing_explicit_path(tmp_path):
+    missing_path = tmp_path / "missing.json"
+
+    with pytest.raises(SystemExit):
+        run_all.resolve_holdings_snapshot(tmp_path, explicit_path=str(missing_path))
+
+
+def test_resolve_holdings_snapshot_finds_latest_backtest_snapshot(tmp_path):
+    old_path = _write_holdings(
+        tmp_path / "data" / "backtest" / "quant_plus_ai" / "old" / "holdings_snapshot.json",
+        as_of_date="2026-04-23",
+    )
+    new_path = _write_holdings(
+        tmp_path / "data" / "backtest" / "quant_plus_ai" / "new" / "holdings_snapshot.json",
+        as_of_date="2026-04-24",
+    )
+    old_path.touch()
+    new_path.touch()
+
+    resolved = run_all.resolve_holdings_snapshot(tmp_path)
+
+    assert resolved == new_path
+
+
+def test_resolve_holdings_snapshot_returns_none_when_not_found(tmp_path):
+    assert run_all.resolve_holdings_snapshot(tmp_path) is None
 
 
 def test_main_routes_backtest_before_daily_parser(monkeypatch):
