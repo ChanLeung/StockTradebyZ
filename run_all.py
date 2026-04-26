@@ -65,7 +65,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--allow-empty-holdings",
         action="store_true",
-        help="没有持仓快照时继续执行，按空仓处理",
+        help="兼容参数：没有持仓快照时默认也会继续，按空仓处理",
     )
     return parser
 
@@ -175,8 +175,8 @@ def print_signal_brief_summary(brief_path: Path) -> None:
 
     in_top_actions = False
     for line in lines:
-        if line.startswith("## Top 5 重点动作"):
-            print("\nTop 5 重点动作")
+        if line.startswith("## Top ") and "重点动作" in line:
+            print(f"\n{line.removeprefix('## ')}")
             in_top_actions = True
             continue
         if in_top_actions and line.startswith("## "):
@@ -296,15 +296,16 @@ def run_daily_loop(
         print("[步骤] 5/7  推荐购买的股票")
         print_recommendations()
 
-    pick_date = load_latest_pick_date(root)
-
     # ── 步骤 6/7：持仓卖出复评 ───────────────────────────────────────
     if start <= 6:
         holdings_path = resolve_holdings_snapshot(root, args.holdings)
         if args.skip_sell_review:
             print("[步骤] 6/7  已跳过持仓卖出复评。")
         elif holdings_path is None:
-            print("[步骤] 6/7  未找到持仓快照，跳过持仓卖出复评。")
+            if args.allow_empty_holdings:
+                print("[步骤] 6/7  未找到持仓快照，按空仓处理，跳过持仓卖出复评。")
+            else:
+                print("[步骤] 6/7  未找到持仓快照，跳过持仓卖出复评。")
         else:
             run_step(
                 "6/7  持仓卖出复评（sell_review）",
@@ -318,6 +319,7 @@ def run_daily_loop(
         print("[步骤] 7/7  已跳过次日执行信号单生成。")
         return
 
+    pick_date = load_latest_pick_date(root)
     ensure_daily_signal_inputs(root, pick_date)
     run_step(
         "7/7  生成次日执行信号单（backtest.cli）",

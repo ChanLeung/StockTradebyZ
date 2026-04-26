@@ -356,6 +356,27 @@ def test_run_daily_loop_start_from_7_only_runs_backtest_signal(tmp_path):
     ]
 
 
+def test_run_daily_loop_start_from_6_skip_signal_does_not_require_candidates(tmp_path):
+    holdings_path = _write_holdings(tmp_path / "holdings_snapshot.json")
+    recorder = StepRecorder()
+    parser = run_all.build_parser()
+    args = parser.parse_args(
+        ["--start-from", "6", "--skip-backtest-signal", "--holdings", str(holdings_path)]
+    )
+
+    run_all.run_daily_loop(
+        args,
+        root=tmp_path,
+        python="python",
+        run_step=recorder,
+        print_recommendations=lambda: None,
+        print_signal_summary=lambda path: None,
+    )
+
+    commands = [" ".join(cmd) for _, cmd in recorder.calls]
+    assert commands == [f"python -m agent.sell_review --input {holdings_path}"]
+
+
 def test_run_daily_loop_step_names_use_seven_step_numbering(tmp_path):
     _write_candidates_latest(tmp_path)
     _write_suggestion(tmp_path)
@@ -433,3 +454,45 @@ def test_print_signal_brief_summary_prints_path_and_key_sections(tmp_path, capsy
     assert str(brief_path) in output
     assert "信号日期：2026-04-24" in output
     assert "买入 600000" in output
+
+
+def test_print_signal_brief_summary_accepts_variable_top_actions_limit(tmp_path, capsys):
+    brief_path = tmp_path / "signal_sheet_brief.md"
+    brief_path.write_text(
+        "# 盘前执行卡片\n\n"
+        "- 信号日期：2026-04-24\n"
+        "- 执行日期：2026-04-27\n"
+        "- 风险模式：normal\n"
+        "- 当前/目标仓位：2 -> 3\n\n"
+        "## Top 3 重点动作\n"
+        "- 卖出 600000\n\n"
+        "## 新开仓（1）\n"
+        "- 000001\n",
+        encoding="utf-8",
+    )
+
+    run_all.print_signal_brief_summary(brief_path)
+
+    output = capsys.readouterr().out
+    assert "Top 3 重点动作" in output
+    assert "卖出 600000" in output
+
+
+def test_run_daily_loop_allow_empty_holdings_mentions_empty_position(tmp_path, capsys):
+    _write_candidates_latest(tmp_path)
+    _write_suggestion(tmp_path)
+    recorder = StepRecorder()
+    parser = run_all.build_parser()
+    args = parser.parse_args(["--skip-fetch", "--allow-empty-holdings"])
+
+    run_all.run_daily_loop(
+        args,
+        root=tmp_path,
+        python="python",
+        run_step=recorder,
+        print_recommendations=lambda: None,
+        print_signal_summary=lambda path: None,
+    )
+
+    output = capsys.readouterr().out
+    assert "按空仓处理" in output
