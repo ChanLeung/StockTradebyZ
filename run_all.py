@@ -43,6 +43,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--start-from",
         type=int,
+        choices=range(1, 8),
         default=1,
         metavar="N",
         help="从第 N 步开始执行（1~7），跳过前面的步骤",
@@ -136,6 +137,25 @@ def ensure_daily_signal_inputs(root: Path, pick_date: str) -> None:
         raise SystemExit(1)
     if not suggestion_path.exists():
         print(f"[ERROR] 找不到当日买入建议，无法生成执行信号单：{suggestion_path}")
+        raise SystemExit(1)
+
+    try:
+        payload = json.loads(candidates_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"[ERROR] 当日候选文件读取失败，无法生成执行信号单：{candidates_path} ({exc})")
+        raise SystemExit(1) from exc
+
+    candidates = payload.get("candidates", [])
+    missing_raw_files = [
+        root / "data" / "raw" / f"{candidate.get('code')}.csv"
+        for candidate in candidates
+        if isinstance(candidate, dict)
+        and candidate.get("code")
+        and not (root / "data" / "raw" / f"{candidate.get('code')}.csv").exists()
+    ]
+    if missing_raw_files:
+        missing_list = "、".join(str(path) for path in missing_raw_files)
+        print(f"[ERROR] 缺少原始K线数据，无法生成执行信号单：{missing_list}")
         raise SystemExit(1)
 
 

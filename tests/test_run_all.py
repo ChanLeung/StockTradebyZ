@@ -32,6 +32,14 @@ def test_run_all_parser_exposes_trading_loop_options():
     assert args.allow_empty_holdings is True
 
 
+@pytest.mark.parametrize("start_from", ["0", "8"])
+def test_run_all_parser_rejects_start_from_outside_daily_steps(start_from):
+    parser = run_all.build_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--start-from", start_from])
+
+
 def test_load_latest_pick_date_reads_candidates_latest(tmp_path):
     candidates_dir = tmp_path / "data" / "candidates"
     candidates_dir.mkdir(parents=True)
@@ -417,6 +425,29 @@ def test_ensure_daily_signal_inputs_requires_suggestion(tmp_path):
 
     with pytest.raises(SystemExit):
         run_all.ensure_daily_signal_inputs(tmp_path, "2026-04-24")
+
+
+def test_ensure_daily_signal_inputs_requires_raw_csv_for_candidates(tmp_path, capsys):
+    pick_date = "2026-04-24"
+    candidates_dir = tmp_path / "data" / "candidates"
+    candidates_dir.mkdir(parents=True, exist_ok=True)
+    (candidates_dir / f"candidates_{pick_date}.json").write_text(
+        json.dumps({"pick_date": pick_date, "candidates": [{"code": "600000"}]}),
+        encoding="utf-8",
+    )
+    _write_suggestion(tmp_path, pick_date)
+
+    with pytest.raises(SystemExit):
+        run_all.ensure_daily_signal_inputs(tmp_path, pick_date)
+
+    assert "缺少原始K线数据" in capsys.readouterr().out
+
+
+def test_ensure_daily_signal_inputs_allows_empty_candidates_without_raw(tmp_path):
+    _write_candidates_latest(tmp_path)
+    _write_suggestion(tmp_path)
+
+    run_all.ensure_daily_signal_inputs(tmp_path, "2026-04-24")
 
 
 def test_build_signal_brief_path_uses_quant_plus_ai_daily_output(tmp_path):
