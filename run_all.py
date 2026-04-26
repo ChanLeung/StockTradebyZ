@@ -53,7 +53,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--holdings",
         default=None,
-        help="当前持仓快照路径，用于卖出复评",
+        help="当前持仓快照路径，用于卖出复评和信号单初始持仓",
     )
     parser.add_argument(
         "--skip-sell-review",
@@ -177,7 +177,21 @@ def _holdings_snapshot_is_empty(path: Path) -> bool:
     return not payload["state"]["positions"]
 
 
-def ensure_daily_signal_inputs(root: Path, pick_date: str) -> None:
+def _load_holdings_position_codes(path: Path) -> list[str]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    positions = payload.get("state", {}).get("positions", [])
+    return [
+        str(position.get("code", "")).strip()
+        for position in positions
+        if isinstance(position, dict) and str(position.get("code", "")).strip()
+    ]
+
+
+def ensure_daily_signal_inputs(
+    root: Path,
+    pick_date: str,
+    additional_codes: list[str] | None = None,
+) -> None:
     candidates_path = root / "data" / "candidates" / f"candidates_{pick_date}.json"
     suggestion_path = root / "data" / "review" / pick_date / "suggestion.json"
 
@@ -189,11 +203,22 @@ def ensure_daily_signal_inputs(root: Path, pick_date: str) -> None:
         raise SystemExit(1)
 
     candidates = _load_daily_candidates(root, pick_date)
+    signal_codes = list(
+        dict.fromkeys(
+            [
+                *[
+                    str(candidate.get("code", "")).strip()
+                    for candidate in candidates
+                    if candidate.get("code")
+                ],
+                *(additional_codes or []),
+            ]
+        )
+    )
     missing_raw_files = [
-        root / "data" / "raw" / f"{candidate.get('code')}.csv"
-        for candidate in candidates
-        if candidate.get("code")
-        and not (root / "data" / "raw" / f"{candidate.get('code')}.csv").exists()
+        root / "data" / "raw" / f"{code}.csv"
+        for code in signal_codes
+        if not (root / "data" / "raw" / f"{code}.csv").exists()
     ]
     if missing_raw_files:
         missing_list = "、".join(str(path) for path in missing_raw_files)
@@ -201,11 +226,10 @@ def ensure_daily_signal_inputs(root: Path, pick_date: str) -> None:
         raise SystemExit(1)
 
     missing_future_data = [
-        root / "data" / "raw" / f"{candidate.get('code')}.csv"
-        for candidate in candidates
-        if candidate.get("code")
-        and not _raw_has_trade_date_after(
-            root / "data" / "raw" / f"{candidate.get('code')}.csv",
+        root / "data" / "raw" / f"{code}.csv"
+        for code in signal_codes
+        if not _raw_has_trade_date_after(
+            root / "data" / "raw" / f"{code}.csv",
             pick_date,
         )
     ]
@@ -398,12 +422,13 @@ def run_daily_loop(
     if args.skip_backtest_signal:
         print("[步骤] 7/7  已跳过次日执行信号单生成。")
         return
-    if holdings_path is None and args.holdings:
+    if holdings_path is None:
         holdings_path = resolve_holdings_snapshot(root, args.holdings)
 
     pick_date = load_latest_pick_date(root)
-    ensure_daily_signal_inputs(root, pick_date)
-    has_current_holdings = holdings_path is not None and not _holdings_snapshot_is_empty(holdings_path)
+    holding_codes = _load_holdings_position_codes(holdings_path) if holdings_path is not None else []
+    ensure_daily_signal_inputs(root, pick_date, holding_codes)
+    has_current_holdings = bool(holding_codes)
     if not _load_daily_candidates(root, pick_date) and not has_current_holdings:
         print("[步骤] 7/7  当天没有买入候选，跳过次日执行信号单生成。")
         return

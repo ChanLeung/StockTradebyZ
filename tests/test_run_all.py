@@ -32,6 +32,14 @@ def test_run_all_parser_exposes_trading_loop_options():
     assert args.allow_empty_holdings is True
 
 
+def test_run_all_help_mentions_holdings_feed_signal_sheet():
+    parser = run_all.build_parser()
+
+    help_text = parser.format_help()
+
+    assert "初始持仓" in help_text
+
+
 @pytest.mark.parametrize("start_from", ["0", "8"])
 def test_run_all_parser_rejects_start_from_outside_daily_steps(start_from):
     parser = run_all.build_parser()
@@ -292,6 +300,7 @@ def test_run_daily_loop_with_holdings_runs_sell_review(tmp_path):
     _write_candidates_latest(tmp_path)
     _write_suggestion(tmp_path)
     holdings_path = _write_holdings(tmp_path / "holdings_snapshot.json")
+    _write_raw_csv(tmp_path, "600000", ["2026-04-24", "2026-04-27"])
     recorder = StepRecorder()
     parser = run_all.build_parser()
     args = parser.parse_args(["--skip-fetch", "--holdings", str(holdings_path)])
@@ -342,6 +351,7 @@ def test_run_daily_loop_skip_sell_review_never_runs_sell_review(tmp_path):
     _write_candidates_latest(tmp_path)
     _write_suggestion(tmp_path)
     holdings_path = _write_holdings(tmp_path / "holdings_snapshot.json")
+    _write_raw_csv(tmp_path, "600000", ["2026-04-24", "2026-04-27"])
     recorder = StepRecorder()
     parser = run_all.build_parser()
     args = parser.parse_args(["--skip-fetch", "--holdings", str(holdings_path), "--skip-sell-review"])
@@ -459,6 +469,7 @@ def test_run_daily_loop_empty_candidates_with_holdings_runs_backtest_signal(tmp_
     _write_candidates_latest(tmp_path)
     _write_suggestion(tmp_path)
     holdings_path = _write_holdings(tmp_path / "holdings_snapshot.json")
+    _write_raw_csv(tmp_path, "600000", ["2026-04-24", "2026-04-27"])
     recorder = StepRecorder()
     parser = run_all.build_parser()
     args = parser.parse_args(["--skip-fetch", "--holdings", str(holdings_path)])
@@ -473,6 +484,96 @@ def test_run_daily_loop_empty_candidates_with_holdings_runs_backtest_signal(tmp_
     )
 
     commands = [" ".join(cmd) for _, cmd in recorder.calls]
+    assert any(
+        (
+            "python -m backtest.cli --mode quant_plus_ai --start 2026-04-24 --end 2026-04-24 "
+            f"--initial-holdings {holdings_path}"
+        )
+        == command
+        for command in commands
+    )
+
+
+def test_run_daily_loop_holdings_missing_raw_fails_before_backtest_signal(tmp_path, capsys):
+    _write_candidates_latest(tmp_path)
+    _write_suggestion(tmp_path)
+    holdings_path = _write_holdings(tmp_path / "holdings_snapshot.json")
+    recorder = StepRecorder()
+    parser = run_all.build_parser()
+    args = parser.parse_args(["--skip-fetch", "--holdings", str(holdings_path)])
+
+    with pytest.raises(SystemExit):
+        run_all.run_daily_loop(
+            args,
+            root=tmp_path,
+            python="python",
+            run_step=recorder,
+            print_recommendations=lambda: None,
+            print_signal_summary=lambda path: None,
+        )
+
+    commands = [" ".join(cmd) for _, cmd in recorder.calls]
+    assert not any("backtest.cli" in command for command in commands)
+    output = capsys.readouterr().out
+    assert "缺少原始K线数据" in output
+    assert "600000.csv" in output
+
+
+@pytest.mark.parametrize(
+    "dates",
+    [
+        ["2026-04-23"],
+        ["2026-04-23", "2026-04-24"],
+    ],
+)
+def test_run_daily_loop_holdings_raw_requires_future_trade_date(tmp_path, dates, capsys):
+    _write_candidates_latest(tmp_path)
+    _write_suggestion(tmp_path)
+    holdings_path = _write_holdings(tmp_path / "holdings_snapshot.json")
+    _write_raw_csv(tmp_path, "600000", dates)
+    recorder = StepRecorder()
+    parser = run_all.build_parser()
+    args = parser.parse_args(["--skip-fetch", "--holdings", str(holdings_path)])
+
+    with pytest.raises(SystemExit):
+        run_all.run_daily_loop(
+            args,
+            root=tmp_path,
+            python="python",
+            run_step=recorder,
+            print_recommendations=lambda: None,
+            print_signal_summary=lambda path: None,
+        )
+
+    commands = [" ".join(cmd) for _, cmd in recorder.calls]
+    assert not any("backtest.cli" in command for command in commands)
+    output = capsys.readouterr().out
+    assert "缺少后续交易日K线数据" in output
+    assert "600000.csv" in output
+
+
+def test_run_daily_loop_skip_sell_review_uses_latest_holdings_for_signal(tmp_path):
+    _write_candidates_latest(tmp_path)
+    _write_suggestion(tmp_path)
+    holdings_path = _write_holdings(
+        tmp_path / "data" / "backtest" / "quant_plus_ai" / "latest" / "holdings_snapshot.json"
+    )
+    _write_raw_csv(tmp_path, "600000", ["2026-04-24", "2026-04-27"])
+    recorder = StepRecorder()
+    parser = run_all.build_parser()
+    args = parser.parse_args(["--skip-fetch", "--skip-sell-review"])
+
+    run_all.run_daily_loop(
+        args,
+        root=tmp_path,
+        python="python",
+        run_step=recorder,
+        print_recommendations=lambda: None,
+        print_signal_summary=lambda path: None,
+    )
+
+    commands = [" ".join(cmd) for _, cmd in recorder.calls]
+    assert not any("agent.sell_review" in command for command in commands)
     assert any(
         (
             "python -m backtest.cli --mode quant_plus_ai --start 2026-04-24 --end 2026-04-24 "

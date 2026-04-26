@@ -160,7 +160,7 @@ python run_all.py --skip-backtest-signal
 - `python run_all.py`：执行默认 7 步日常交易闭环
 - `python run_all.py --skip-fetch`：跳过步骤 1 行情下载，适合已有最新数据时使用
 - `python run_all.py --start-from 3`：从步骤 3 导出图表开始执行，跳过行情下载和量化初选
-- `python run_all.py --holdings data/backtest/quant_plus_ai/2026-04-24_2026-04-24/holdings_snapshot.json`：指定当前持仓快照给卖出复评使用
+- `python run_all.py --holdings data/backtest/quant_plus_ai/2026-04-24_2026-04-24/holdings_snapshot.json`：指定当前持仓快照，供卖出复评和次日执行信号单作为初始持仓使用
 - `python run_all.py --skip-sell-review`：跳过步骤 6，只生成买入建议和后续信号单
 - `python run_all.py --skip-backtest-signal`：跳过步骤 7，不生成次日执行信号单
 - `--allow-empty-holdings`：兼容参数；没有持仓快照时默认也会继续，并按空仓处理
@@ -168,7 +168,7 @@ python run_all.py --skip-backtest-signal
 补充说明：
 
 - 没有持仓快照，或持仓快照为空时，卖出复评会按空仓跳过，不会阻断买入流程
-- 如果当天没有买入候选，脚本会跳过次日执行信号单，避免触发研究回测 CLI 的演示数据回退
+- 如果当天没有买入候选且没有当前持仓/为空仓，脚本才会跳过次日执行信号单；有当前持仓时仍会生成持仓/卖出相关信号单
 - `python run_all.py backtest ...` 仍作为研究回测入口保留，详见“研究闭环回测”
 
 ---
