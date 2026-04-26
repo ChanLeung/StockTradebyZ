@@ -20,10 +20,12 @@ run_all.py
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import subprocess
 import sys
 from collections.abc import Callable
+from datetime import date
 from pathlib import Path
 
 from project_env import load_project_env
@@ -128,6 +130,53 @@ def resolve_holdings_snapshot(root: Path = ROOT, explicit_path: str | None = Non
     return max(candidates, key=lambda path: (path.stat().st_mtime, str(path)))
 
 
+def _load_daily_candidates(root: Path, pick_date: str) -> list[dict]:
+    candidates_path = root / "data" / "candidates" / f"candidates_{pick_date}.json"
+    try:
+        payload = json.loads(candidates_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"[ERROR] 当日候选文件读取失败，无法生成执行信号单：{candidates_path} ({exc})")
+        raise SystemExit(1) from exc
+
+    candidates = payload.get("candidates", [])
+    return [candidate for candidate in candidates if isinstance(candidate, dict)]
+
+
+def _parse_csv_date(value: object) -> date | None:
+    text = str(value or "").strip()
+    if len(text) >= 10:
+        text = text[:10]
+    elif len(text) == 8 and text.isdigit():
+        text = f"{text[:4]}-{text[4:6]}-{text[6:]}"
+    try:
+        return date.fromisoformat(text)
+    except ValueError:
+        return None
+
+
+def _raw_has_trade_date_after(raw_path: Path, pick_date: str) -> bool:
+    signal_date = _parse_csv_date(pick_date)
+    if signal_date is None:
+        return False
+
+    try:
+        with raw_path.open(encoding="utf-8", newline="") as f:
+            reader = csv.DictReader(f)
+            if "date" not in (reader.fieldnames or []):
+                return False
+            return any(
+                raw_date is not None and raw_date > signal_date
+                for raw_date in (_parse_csv_date(row.get("date")) for row in reader)
+            )
+    except OSError:
+        return False
+
+
+def _holdings_snapshot_is_empty(path: Path) -> bool:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return not payload["state"]["positions"]
+
+
 def ensure_daily_signal_inputs(root: Path, pick_date: str) -> None:
     candidates_path = root / "data" / "candidates" / f"candidates_{pick_date}.json"
     suggestion_path = root / "data" / "review" / pick_date / "suggestion.json"
@@ -139,23 +188,30 @@ def ensure_daily_signal_inputs(root: Path, pick_date: str) -> None:
         print(f"[ERROR] 找不到当日买入建议，无法生成执行信号单：{suggestion_path}")
         raise SystemExit(1)
 
-    try:
-        payload = json.loads(candidates_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        print(f"[ERROR] 当日候选文件读取失败，无法生成执行信号单：{candidates_path} ({exc})")
-        raise SystemExit(1) from exc
-
-    candidates = payload.get("candidates", [])
+    candidates = _load_daily_candidates(root, pick_date)
     missing_raw_files = [
         root / "data" / "raw" / f"{candidate.get('code')}.csv"
         for candidate in candidates
-        if isinstance(candidate, dict)
-        and candidate.get("code")
+        if candidate.get("code")
         and not (root / "data" / "raw" / f"{candidate.get('code')}.csv").exists()
     ]
     if missing_raw_files:
         missing_list = "、".join(str(path) for path in missing_raw_files)
         print(f"[ERROR] 缺少原始K线数据，无法生成执行信号单：{missing_list}")
+        raise SystemExit(1)
+
+    missing_future_data = [
+        root / "data" / "raw" / f"{candidate.get('code')}.csv"
+        for candidate in candidates
+        if candidate.get("code")
+        and not _raw_has_trade_date_after(
+            root / "data" / "raw" / f"{candidate.get('code')}.csv",
+            pick_date,
+        )
+    ]
+    if missing_future_data:
+        missing_list = "、".join(str(path) for path in missing_future_data)
+        print(f"[ERROR] 缺少后续交易日K线数据，无法生成执行信号单：{missing_list}")
         raise SystemExit(1)
 
 
@@ -326,6 +382,8 @@ def run_daily_loop(
                 print("[步骤] 6/7  未找到持仓快照，按空仓处理，跳过持仓卖出复评。")
             else:
                 print("[步骤] 6/7  未找到持仓快照，跳过持仓卖出复评。")
+        elif _holdings_snapshot_is_empty(holdings_path):
+            print("[步骤] 6/7  持仓快照为空仓，跳过持仓卖出复评。")
         else:
             run_step(
                 "6/7  持仓卖出复评（sell_review）",
@@ -341,6 +399,10 @@ def run_daily_loop(
 
     pick_date = load_latest_pick_date(root)
     ensure_daily_signal_inputs(root, pick_date)
+    if not _load_daily_candidates(root, pick_date):
+        print("[步骤] 7/7  当天没有买入候选，跳过次日执行信号单生成。")
+        return
+
     run_step(
         "7/7  生成次日执行信号单（backtest.cli）",
         [

@@ -110,13 +110,20 @@ def test_validate_holdings_snapshot_rejects_json_decode_error(tmp_path):
     assert run_all.validate_holdings_snapshot(holdings_path) is False
 
 
-def _write_holdings(path: Path, *, as_of_date: str = "2026-04-24") -> Path:
+def _write_holdings(
+    path: Path,
+    *,
+    as_of_date: str = "2026-04-24",
+    positions: list[dict] | None = None,
+) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
+    if positions is None:
+        positions = [{"code": "600000"}]
     path.write_text(
         json.dumps(
             {
                 "as_of_date": as_of_date,
-                "state": {"cash": 1000000.0, "positions": [{"code": "600000"}]},
+                "state": {"cash": 1000000.0, "positions": positions},
             }
         ),
         encoding="utf-8",
@@ -216,15 +223,21 @@ class StepRecorder:
         self.calls.append((step_name, cmd))
 
 
-def _write_candidates_latest(root: Path, pick_date: str = "2026-04-24") -> None:
+def _write_candidates_latest(
+    root: Path,
+    pick_date: str = "2026-04-24",
+    candidates: list[dict] | None = None,
+) -> None:
+    if candidates is None:
+        candidates = []
     candidates_dir = root / "data" / "candidates"
     candidates_dir.mkdir(parents=True, exist_ok=True)
     (candidates_dir / "candidates_latest.json").write_text(
-        json.dumps({"pick_date": pick_date, "candidates": []}),
+        json.dumps({"pick_date": pick_date, "candidates": candidates}),
         encoding="utf-8",
     )
     (candidates_dir / f"candidates_{pick_date}.json").write_text(
-        json.dumps({"pick_date": pick_date, "candidates": []}),
+        json.dumps({"pick_date": pick_date, "candidates": candidates}),
         encoding="utf-8",
     )
 
@@ -238,9 +251,20 @@ def _write_suggestion(root: Path, pick_date: str = "2026-04-24") -> None:
     )
 
 
+def _write_raw_csv(root: Path, code: str, dates: list[str]) -> Path:
+    raw_dir = root / "data" / "raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    raw_path = raw_dir / f"{code}.csv"
+    rows = ["date,open,close,high,low,volume"]
+    rows.extend(f"{date},10,10,10,10,1000" for date in dates)
+    raw_path.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    return raw_path
+
+
 def test_run_daily_loop_without_holdings_skips_sell_review(tmp_path, capsys):
-    _write_candidates_latest(tmp_path)
+    _write_candidates_latest(tmp_path, candidates=[{"code": "600000"}])
     _write_suggestion(tmp_path)
+    _write_raw_csv(tmp_path, "600000", ["2026-04-24", "2026-04-27"])
     recorder = StepRecorder()
     parser = run_all.build_parser()
     args = parser.parse_args(["--skip-fetch"])
@@ -307,8 +331,9 @@ def test_run_daily_loop_skip_sell_review_never_runs_sell_review(tmp_path):
 
 
 def test_run_daily_loop_start_from_6_skips_recommendations_and_runs_later_steps(tmp_path):
-    _write_candidates_latest(tmp_path)
+    _write_candidates_latest(tmp_path, candidates=[{"code": "600000"}])
     _write_suggestion(tmp_path)
+    _write_raw_csv(tmp_path, "600000", ["2026-04-24", "2026-04-27"])
     holdings_path = _write_holdings(tmp_path / "holdings_snapshot.json")
     recorder = StepRecorder()
     parser = run_all.build_parser()
@@ -335,8 +360,14 @@ def test_run_daily_loop_start_from_6_skips_recommendations_and_runs_later_steps(
 
 
 def test_run_daily_loop_start_from_7_only_runs_backtest_signal(tmp_path):
-    _write_candidates_latest(tmp_path)
+    pick_date = "2026-04-24"
+    candidates_dir = tmp_path / "data" / "candidates"
+    candidates_dir.mkdir(parents=True, exist_ok=True)
+    payload = {"pick_date": pick_date, "candidates": [{"code": "600000"}]}
+    (candidates_dir / "candidates_latest.json").write_text(json.dumps(payload), encoding="utf-8")
+    (candidates_dir / f"candidates_{pick_date}.json").write_text(json.dumps(payload), encoding="utf-8")
     _write_suggestion(tmp_path)
+    _write_raw_csv(tmp_path, "600000", ["2026-04-24", "2026-04-27"])
     holdings_path = _write_holdings(tmp_path / "holdings_snapshot.json")
     recorder = StepRecorder()
     parser = run_all.build_parser()
@@ -364,6 +395,27 @@ def test_run_daily_loop_start_from_7_only_runs_backtest_signal(tmp_path):
     ]
 
 
+def test_run_daily_loop_empty_candidates_skips_backtest_signal(tmp_path, capsys):
+    _write_candidates_latest(tmp_path)
+    _write_suggestion(tmp_path)
+    recorder = StepRecorder()
+    parser = run_all.build_parser()
+    args = parser.parse_args(["--skip-fetch"])
+
+    run_all.run_daily_loop(
+        args,
+        root=tmp_path,
+        python="python",
+        run_step=recorder,
+        print_recommendations=lambda: None,
+        print_signal_summary=lambda path: None,
+    )
+
+    commands = [" ".join(cmd) for _, cmd in recorder.calls]
+    assert not any("backtest.cli" in command for command in commands)
+    assert "没有买入候选" in capsys.readouterr().out
+
+
 def test_run_daily_loop_start_from_6_skip_signal_does_not_require_candidates(tmp_path):
     holdings_path = _write_holdings(tmp_path / "holdings_snapshot.json")
     recorder = StepRecorder()
@@ -383,6 +435,28 @@ def test_run_daily_loop_start_from_6_skip_signal_does_not_require_candidates(tmp
 
     commands = [" ".join(cmd) for _, cmd in recorder.calls]
     assert commands == [f"python -m agent.sell_review --input {holdings_path}"]
+
+
+def test_run_daily_loop_empty_holdings_snapshot_skips_sell_review(tmp_path, capsys):
+    _write_candidates_latest(tmp_path)
+    _write_suggestion(tmp_path)
+    holdings_path = _write_holdings(tmp_path / "holdings_snapshot.json", positions=[])
+    recorder = StepRecorder()
+    parser = run_all.build_parser()
+    args = parser.parse_args(["--skip-fetch", "--holdings", str(holdings_path)])
+
+    run_all.run_daily_loop(
+        args,
+        root=tmp_path,
+        python="python",
+        run_step=recorder,
+        print_recommendations=lambda: None,
+        print_signal_summary=lambda path: None,
+    )
+
+    commands = [" ".join(cmd) for _, cmd in recorder.calls]
+    assert not any("agent.sell_review" in command for command in commands)
+    assert "空仓" in capsys.readouterr().out
 
 
 def test_run_daily_loop_step_names_use_seven_step_numbering(tmp_path):
@@ -441,6 +515,44 @@ def test_ensure_daily_signal_inputs_requires_raw_csv_for_candidates(tmp_path, ca
         run_all.ensure_daily_signal_inputs(tmp_path, pick_date)
 
     assert "缺少原始K线数据" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "dates",
+    [
+        ["2026-04-23"],
+        ["2026-04-23", "2026-04-24"],
+    ],
+)
+def test_ensure_daily_signal_inputs_requires_future_raw_trade_date(tmp_path, dates, capsys):
+    pick_date = "2026-04-24"
+    candidates_dir = tmp_path / "data" / "candidates"
+    candidates_dir.mkdir(parents=True, exist_ok=True)
+    (candidates_dir / f"candidates_{pick_date}.json").write_text(
+        json.dumps({"pick_date": pick_date, "candidates": [{"code": "600000"}]}),
+        encoding="utf-8",
+    )
+    _write_suggestion(tmp_path, pick_date)
+    _write_raw_csv(tmp_path, "600000", dates)
+
+    with pytest.raises(SystemExit):
+        run_all.ensure_daily_signal_inputs(tmp_path, pick_date)
+
+    assert "缺少后续交易日K线数据" in capsys.readouterr().out
+
+
+def test_ensure_daily_signal_inputs_accepts_raw_trade_date_after_pick_date(tmp_path):
+    pick_date = "2026-04-24"
+    candidates_dir = tmp_path / "data" / "candidates"
+    candidates_dir.mkdir(parents=True, exist_ok=True)
+    (candidates_dir / f"candidates_{pick_date}.json").write_text(
+        json.dumps({"pick_date": pick_date, "candidates": [{"code": "600000"}]}),
+        encoding="utf-8",
+    )
+    _write_suggestion(tmp_path, pick_date)
+    _write_raw_csv(tmp_path, "600000", ["2026-04-24", "2026-04-27"])
+
+    run_all.ensure_daily_signal_inputs(tmp_path, pick_date)
 
 
 def test_ensure_daily_signal_inputs_allows_empty_candidates_without_raw(tmp_path):
