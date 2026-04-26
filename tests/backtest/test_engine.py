@@ -1,10 +1,15 @@
+import json
+
 import pandas as pd
 import pytest
 
+import backtest.cli as backtest_cli
 from backtest.cli import build_parser, load_backtest_config, load_local_backtest_bundle, main as cli_main
 from backtest.engine import run_backtest
+from backtest.reporting import build_signal_sheet
 from pipeline.schemas import Candidate
-from trading.holdings_io import load_holdings_snapshot
+from trading.holdings_io import load_holdings_snapshot, save_holdings_snapshot
+from trading.schemas import PortfolioState, Position
 
 
 def test_engine_runs_close_to_next_open_cycle():
@@ -62,6 +67,103 @@ def test_backtest_cli_help_marks_quant_only_as_debug_mode():
 
     assert "quant_only" in help_text
     assert "仅内部调试" in help_text
+
+
+def test_backtest_cli_parses_initial_holdings_path():
+    parser = build_parser()
+
+    args = parser.parse_args(["--initial-holdings", "data/backtest/holdings_snapshot.json"])
+
+    assert args.initial_holdings == "data/backtest/holdings_snapshot.json"
+
+
+def test_engine_uses_initial_state_for_signal_holdings_and_sell_decisions():
+    data_bundle = {
+        "initial_state": PortfolioState(
+            cash=5000.0,
+            positions=[
+                Position(
+                    code="600000",
+                    entry_date="2026-01-02",
+                    entry_price=10.0,
+                    weight=1.0,
+                    quantity=100,
+                )
+            ],
+        ),
+        "daily_candidates": {"2026-01-06": []},
+        "next_open_prices": {"2026-01-07": {"600000": 11.0}},
+        "signal_close_prices": {"2026-01-06": {"600000": 10.5}},
+        "sell_decisions": {"2026-01-06": {"600000": "sell"}},
+        "stock_to_index": {"600000": "HS300"},
+        "benchmark_returns": pd.DataFrame({"HS300": [0.0]}, index=["2026-01-07"]),
+    }
+
+    result = run_backtest(
+        {
+            "max_positions": 10,
+            "costs": {"commission_bps": 0, "stamp_duty_bps": 0, "slippage_bps": 0},
+        },
+        data_bundle,
+    )
+    signal_sheet = build_signal_sheet(result)
+
+    assert result.initial_cash == pytest.approx(6000.0)
+    assert signal_sheet["current_holdings"][0]["code"] == "600000"
+    assert signal_sheet["sell_orders"][0]["code"] == "600000"
+    assert [trade.side for trade in result.trades] == ["sell"]
+    assert result.final_state.positions == []
+
+
+def test_backtest_cli_initial_holdings_populates_signal_sheet(tmp_path, monkeypatch):
+    output_dir = tmp_path / "out"
+    holdings_path = tmp_path / "holdings_snapshot.json"
+    save_holdings_snapshot(
+        holdings_path,
+        as_of_date="2026-01-06",
+        state=PortfolioState(
+            cash=5000.0,
+            positions=[
+                Position(
+                    code="600000",
+                    entry_date="2026-01-02",
+                    entry_price=10.0,
+                    weight=1.0,
+                    quantity=100,
+                )
+            ],
+        ),
+    )
+
+    def fake_build_backtest_bundle(*args, **kwargs):
+        return {
+            "daily_candidates": {"2026-01-06": []},
+            "next_open_prices": {"2026-01-07": {"600000": 11.0}},
+            "signal_close_prices": {"2026-01-06": {"600000": 10.5}},
+            "stock_to_index": {"600000": "HS300"},
+            "benchmark_returns": pd.DataFrame({"HS300": [0.0]}, index=["2026-01-07"]),
+        }
+
+    monkeypatch.setattr(backtest_cli, "build_backtest_bundle", fake_build_backtest_bundle)
+
+    cli_main(
+        [
+            "--mode",
+            "quant_only",
+            "--start",
+            "2026-01-06",
+            "--end",
+            "2026-01-06",
+            "--output-dir",
+            str(output_dir),
+            "--initial-holdings",
+            str(holdings_path),
+        ]
+    )
+
+    signal_path = output_dir / "quant_only" / "2026-01-06_2026-01-06" / "signal_sheet.json"
+    signal_sheet = json.loads(signal_path.read_text(encoding="utf-8"))
+    assert signal_sheet["current_holdings"][0]["code"] == "600000"
 
 
 def test_backtest_cli_writes_daily_snapshots_file(tmp_path):

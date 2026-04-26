@@ -334,6 +334,7 @@ def run_daily_loop(
     print_signal_summary: Callable[[Path], None] | None = None,
 ) -> None:
     start = args.start_from
+    holdings_path: Path | None = None
 
     if args.skip_fetch and start == 1:
         start = 2
@@ -374,21 +375,22 @@ def run_daily_loop(
 
     # ── 步骤 6/7：持仓卖出复评 ───────────────────────────────────────
     if start <= 6:
-        holdings_path = resolve_holdings_snapshot(root, args.holdings)
         if args.skip_sell_review:
             print("[步骤] 6/7  已跳过持仓卖出复评。")
-        elif holdings_path is None:
-            if args.allow_empty_holdings:
-                print("[步骤] 6/7  未找到持仓快照，按空仓处理，跳过持仓卖出复评。")
-            else:
-                print("[步骤] 6/7  未找到持仓快照，跳过持仓卖出复评。")
-        elif _holdings_snapshot_is_empty(holdings_path):
-            print("[步骤] 6/7  持仓快照为空仓，跳过持仓卖出复评。")
         else:
-            run_step(
-                "6/7  持仓卖出复评（sell_review）",
-                [python, "-m", "agent.sell_review", "--input", str(holdings_path)],
-            )
+            holdings_path = resolve_holdings_snapshot(root, args.holdings)
+            if holdings_path is None:
+                if args.allow_empty_holdings:
+                    print("[步骤] 6/7  未找到持仓快照，按空仓处理，跳过持仓卖出复评。")
+                else:
+                    print("[步骤] 6/7  未找到持仓快照，跳过持仓卖出复评。")
+            elif _holdings_snapshot_is_empty(holdings_path):
+                print("[步骤] 6/7  持仓快照为空仓，跳过持仓卖出复评。")
+            else:
+                run_step(
+                    "6/7  持仓卖出复评（sell_review）",
+                    [python, "-m", "agent.sell_review", "--input", str(holdings_path)],
+                )
 
     # ── 步骤 7/7：单日回测生成次日执行信号单 ─────────────────────────
     if start > 7:
@@ -396,26 +398,33 @@ def run_daily_loop(
     if args.skip_backtest_signal:
         print("[步骤] 7/7  已跳过次日执行信号单生成。")
         return
+    if holdings_path is None and args.holdings:
+        holdings_path = resolve_holdings_snapshot(root, args.holdings)
 
     pick_date = load_latest_pick_date(root)
     ensure_daily_signal_inputs(root, pick_date)
-    if not _load_daily_candidates(root, pick_date):
+    has_current_holdings = holdings_path is not None and not _holdings_snapshot_is_empty(holdings_path)
+    if not _load_daily_candidates(root, pick_date) and not has_current_holdings:
         print("[步骤] 7/7  当天没有买入候选，跳过次日执行信号单生成。")
         return
 
+    backtest_cmd = [
+        python,
+        "-m",
+        "backtest.cli",
+        "--mode",
+        "quant_plus_ai",
+        "--start",
+        pick_date,
+        "--end",
+        pick_date,
+    ]
+    if holdings_path is not None:
+        backtest_cmd.extend(["--initial-holdings", str(holdings_path)])
+
     run_step(
         "7/7  生成次日执行信号单（backtest.cli）",
-        [
-            python,
-            "-m",
-            "backtest.cli",
-            "--mode",
-            "quant_plus_ai",
-            "--start",
-            pick_date,
-            "--end",
-            pick_date,
-        ],
+        backtest_cmd,
     )
     signal_brief_path = build_signal_brief_path(root, pick_date)
     (print_signal_summary or print_signal_brief_summary)(signal_brief_path)

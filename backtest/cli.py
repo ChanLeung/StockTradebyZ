@@ -20,8 +20,9 @@ from pipeline.fetch_reference_data import load_reference_series
 from pipeline.reference_io import load_index_membership, load_reference_config, load_stock_industry, pick_primary_index
 from pipeline.schemas import Candidate, CandidateRun
 from agent.review_types import parse_sell_review
-from trading.holdings_io import save_holdings_snapshot
+from trading.holdings_io import load_holdings_snapshot, save_holdings_snapshot
 from trading.risk import build_risk_signals
+from trading.schemas import PortfolioState
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -41,6 +42,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--start", default="2026-01-01", help="开始日期 YYYY-MM-DD")
     parser.add_argument("--end", default="2026-01-31", help="结束日期 YYYY-MM-DD")
     parser.add_argument("--output-dir", default=None, help="输出目录，默认读取配置")
+    parser.add_argument("--initial-holdings", default=None, help="初始持仓快照路径")
     return parser
 
 
@@ -112,6 +114,7 @@ def load_local_backtest_bundle(
     end: str,
     mode: str,
     manual_risk_off: bool = False,
+    initial_state: PortfolioState | None = None,
 ) -> dict:
     root = Path(project_root)
     candidates_dir = root / "data" / "candidates"
@@ -138,6 +141,7 @@ def load_local_backtest_bundle(
     sell_reviews: dict[str, dict[str, dict]] = {}
     trade_dates: set[str] = set()
     tracked_codes: set[str] = set()
+    initial_codes = {position.code for position in initial_state.positions} if initial_state else set()
     reference_config = load_reference_config(root / "config" / "reference_data.yaml")
     benchmark_priority = reference_config.get(
         "benchmark_priority",
@@ -152,10 +156,12 @@ def load_local_backtest_bundle(
         if not (start <= pick_date <= end):
             continue
 
-        trade_date = _find_next_trade_date(pick_date, run.candidates, raw_dir, raw_cache)
+        signal_codes = {candidate.code for candidate in run.candidates} | initial_codes
+        trade_date = _find_next_trade_date(pick_date, signal_codes, raw_dir, raw_cache)
         if trade_date is None:
             continue
 
+        tracked_codes.update(initial_codes)
         tracked_codes.update(candidate.code for candidate in run.candidates)
         open_map: dict[str, float] = {}
         close_map: dict[str, float] = {}
@@ -169,6 +175,12 @@ def load_local_backtest_bundle(
             signal_row = _find_price_row(tracked_code, pick_date, raw_dir, raw_cache)
             if signal_row is not None:
                 close_map[tracked_code] = float(signal_row["close"])
+            if tracked_code not in stock_to_index:
+                stock_to_index[tracked_code] = pick_primary_index(
+                    tracked_code,
+                    membership,
+                    benchmark_priority,
+                )
 
         for candidate in run.candidates:
             if candidate.code not in open_map:
@@ -188,7 +200,7 @@ def load_local_backtest_bundle(
             date_sell_decisions[tracked_code] = sell_review["decision"]
             date_sell_reviews[tracked_code] = sell_review
 
-        if not enriched_candidates:
+        if not enriched_candidates and not initial_codes:
             continue
 
         daily_candidates[pick_date] = enriched_candidates
@@ -233,6 +245,7 @@ def build_backtest_bundle(
     end: str,
     mode: str,
     manual_risk_off: bool = False,
+    initial_state: PortfolioState | None = None,
 ) -> dict:
     try:
         return load_local_backtest_bundle(
@@ -241,6 +254,7 @@ def build_backtest_bundle(
             end=end,
             mode=mode,
             manual_risk_off=manual_risk_off,
+            initial_state=initial_state,
         )
     except FileNotFoundError:
         return build_demo_bundle(start, end, mode)
@@ -256,13 +270,13 @@ def _load_raw_frame(code: str, raw_dir: Path, raw_cache: dict[str, pd.DataFrame]
 
 def _find_next_trade_date(
     signal_date: str,
-    candidates: list[Candidate],
+    codes: set[str],
     raw_dir: Path,
     raw_cache: dict[str, pd.DataFrame],
 ) -> str | None:
     next_dates: list[str] = []
-    for candidate in candidates:
-        frame = _load_raw_frame(candidate.code, raw_dir, raw_cache)
+    for code in codes:
+        frame = _load_raw_frame(code, raw_dir, raw_cache)
         future_dates = frame.loc[frame["date"] > signal_date, "date"]
         if not future_dates.empty:
             next_dates.append(str(future_dates.iloc[0]))
@@ -329,13 +343,21 @@ def main(argv: list[str] | None = None) -> None:
 
     config = load_backtest_config(args.config)
     output_root = PROJECT_ROOT / (args.output_dir or config.get("output_dir", "data/backtest"))
+    initial_state = (
+        load_holdings_snapshot(args.initial_holdings)["state"]
+        if args.initial_holdings
+        else None
+    )
     data_bundle = build_backtest_bundle(
         PROJECT_ROOT,
         start=args.start,
         end=args.end,
         mode=args.mode,
         manual_risk_off=bool(config.get("risk", {}).get("manual_switch", False)),
+        initial_state=initial_state,
     )
+    if initial_state is not None:
+        data_bundle["initial_state"] = initial_state
     result = run_backtest(config or {"max_positions": 10}, data_bundle)
 
     summary = summarize_backtest(result)

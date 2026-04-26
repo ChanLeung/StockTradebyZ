@@ -35,10 +35,27 @@ def run_backtest(config: dict, data_bundle: dict) -> BacktestResult:
     max_positions = int(config.get("max_positions", 10))
     portfolio_config = config.get("portfolio", {})
     buy_rules = config.get("buy_rules", {})
-    cash = float(config.get("initial_cash", 1_000_000.0))
-    result.initial_cash = cash
+    initial_state = data_bundle.get("initial_state")
+    if isinstance(initial_state, PortfolioState):
+        cash = float(initial_state.cash)
+        current_positions = [
+            Position(
+                code=position.code,
+                entry_date=position.entry_date,
+                entry_price=position.entry_price,
+                weight=position.weight,
+                quantity=position.quantity,
+            )
+            for position in initial_state.positions
+        ]
+    else:
+        cash = float(config.get("initial_cash", 1_000_000.0))
+        current_positions = []
+    result.initial_cash = cash + sum(
+        position.entry_price * position.quantity
+        for position in current_positions
+    )
     cost_config = config.get("costs", {})
-    current_positions: list[Position] = []
     stock_to_index = data_bundle.get("stock_to_index", {})
     stock_to_industry = data_bundle.get("stock_to_industry", {})
     min_buy_score = float(buy_rules.get("min_buy_score", 4.0))

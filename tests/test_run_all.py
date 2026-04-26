@@ -309,6 +309,35 @@ def test_run_daily_loop_with_holdings_runs_sell_review(tmp_path):
     assert any(f"python -m agent.sell_review --input {holdings_path}" == command for command in commands)
 
 
+def test_run_daily_loop_with_holdings_passes_initial_holdings_to_backtest(tmp_path):
+    _write_candidates_latest(tmp_path, candidates=[{"code": "600000"}])
+    _write_suggestion(tmp_path)
+    _write_raw_csv(tmp_path, "600000", ["2026-04-24", "2026-04-27"])
+    holdings_path = _write_holdings(tmp_path / "holdings_snapshot.json")
+    recorder = StepRecorder()
+    parser = run_all.build_parser()
+    args = parser.parse_args(["--skip-fetch", "--holdings", str(holdings_path)])
+
+    run_all.run_daily_loop(
+        args,
+        root=tmp_path,
+        python="python",
+        run_step=recorder,
+        print_recommendations=lambda: None,
+        print_signal_summary=lambda path: None,
+    )
+
+    commands = [" ".join(cmd) for _, cmd in recorder.calls]
+    assert any(
+        (
+            "python -m backtest.cli --mode quant_plus_ai --start 2026-04-24 --end 2026-04-24 "
+            f"--initial-holdings {holdings_path}"
+        )
+        == command
+        for command in commands
+    )
+
+
 def test_run_daily_loop_skip_sell_review_never_runs_sell_review(tmp_path):
     _write_candidates_latest(tmp_path)
     _write_suggestion(tmp_path)
@@ -356,7 +385,14 @@ def test_run_daily_loop_start_from_6_skips_recommendations_and_runs_later_steps(
     assert not any("export_kline_charts" in command for command in commands)
     assert not any("agent.buy_review" in command for command in commands)
     assert any(f"python -m agent.sell_review --input {holdings_path}" == command for command in commands)
-    assert any("python -m backtest.cli --mode quant_plus_ai --start 2026-04-24 --end 2026-04-24" == command for command in commands)
+    assert any(
+        (
+            "python -m backtest.cli --mode quant_plus_ai --start 2026-04-24 --end 2026-04-24 "
+            f"--initial-holdings {holdings_path}"
+        )
+        == command
+        for command in commands
+    )
 
 
 def test_run_daily_loop_start_from_7_only_runs_backtest_signal(tmp_path):
@@ -391,11 +427,14 @@ def test_run_daily_loop_start_from_7_only_runs_backtest_signal(tmp_path):
     assert not any("agent.buy_review" in command for command in commands)
     assert not any("agent.sell_review" in command for command in commands)
     assert commands == [
-        "python -m backtest.cli --mode quant_plus_ai --start 2026-04-24 --end 2026-04-24"
+        (
+            "python -m backtest.cli --mode quant_plus_ai --start 2026-04-24 --end 2026-04-24 "
+            f"--initial-holdings {holdings_path}"
+        )
     ]
 
 
-def test_run_daily_loop_empty_candidates_skips_backtest_signal(tmp_path, capsys):
+def test_run_daily_loop_empty_candidates_without_holdings_skips_backtest_signal(tmp_path, capsys):
     _write_candidates_latest(tmp_path)
     _write_suggestion(tmp_path)
     recorder = StepRecorder()
@@ -414,6 +453,110 @@ def test_run_daily_loop_empty_candidates_skips_backtest_signal(tmp_path, capsys)
     commands = [" ".join(cmd) for _, cmd in recorder.calls]
     assert not any("backtest.cli" in command for command in commands)
     assert "没有买入候选" in capsys.readouterr().out
+
+
+def test_run_daily_loop_empty_candidates_with_holdings_runs_backtest_signal(tmp_path):
+    _write_candidates_latest(tmp_path)
+    _write_suggestion(tmp_path)
+    holdings_path = _write_holdings(tmp_path / "holdings_snapshot.json")
+    recorder = StepRecorder()
+    parser = run_all.build_parser()
+    args = parser.parse_args(["--skip-fetch", "--holdings", str(holdings_path)])
+
+    run_all.run_daily_loop(
+        args,
+        root=tmp_path,
+        python="python",
+        run_step=recorder,
+        print_recommendations=lambda: None,
+        print_signal_summary=lambda path: None,
+    )
+
+    commands = [" ".join(cmd) for _, cmd in recorder.calls]
+    assert any(
+        (
+            "python -m backtest.cli --mode quant_plus_ai --start 2026-04-24 --end 2026-04-24 "
+            f"--initial-holdings {holdings_path}"
+        )
+        == command
+        for command in commands
+    )
+
+
+def test_run_daily_loop_empty_candidates_with_empty_holdings_skips_backtest_signal(tmp_path, capsys):
+    _write_candidates_latest(tmp_path)
+    _write_suggestion(tmp_path)
+    holdings_path = _write_holdings(tmp_path / "holdings_snapshot.json", positions=[])
+    recorder = StepRecorder()
+    parser = run_all.build_parser()
+    args = parser.parse_args(["--skip-fetch", "--holdings", str(holdings_path)])
+
+    run_all.run_daily_loop(
+        args,
+        root=tmp_path,
+        python="python",
+        run_step=recorder,
+        print_recommendations=lambda: None,
+        print_signal_summary=lambda path: None,
+    )
+
+    commands = [" ".join(cmd) for _, cmd in recorder.calls]
+    assert not any("backtest.cli" in command for command in commands)
+    assert "没有买入候选" in capsys.readouterr().out
+
+
+def test_run_daily_loop_skip_sell_review_and_signal_does_not_validate_holdings(tmp_path):
+    recorder = StepRecorder()
+    parser = run_all.build_parser()
+    missing_path = tmp_path / "missing.json"
+    args = parser.parse_args(
+        [
+            "--start-from",
+            "6",
+            "--skip-sell-review",
+            "--skip-backtest-signal",
+            "--holdings",
+            str(missing_path),
+        ]
+    )
+
+    run_all.run_daily_loop(
+        args,
+        root=tmp_path,
+        python="python",
+        run_step=recorder,
+        print_recommendations=lambda: None,
+        print_signal_summary=lambda path: None,
+    )
+
+    assert recorder.calls == []
+
+
+def test_run_daily_loop_skip_sell_review_validates_holdings_when_signal_needed(tmp_path):
+    _write_candidates_latest(tmp_path, candidates=[{"code": "600000"}])
+    _write_suggestion(tmp_path)
+    _write_raw_csv(tmp_path, "600000", ["2026-04-24", "2026-04-27"])
+    recorder = StepRecorder()
+    parser = run_all.build_parser()
+    args = parser.parse_args(
+        [
+            "--start-from",
+            "6",
+            "--skip-sell-review",
+            "--holdings",
+            str(tmp_path / "missing.json"),
+        ]
+    )
+
+    with pytest.raises(SystemExit):
+        run_all.run_daily_loop(
+            args,
+            root=tmp_path,
+            python="python",
+            run_step=recorder,
+            print_recommendations=lambda: None,
+            print_signal_summary=lambda path: None,
+        )
 
 
 def test_run_daily_loop_start_from_6_skip_signal_does_not_require_candidates(tmp_path):
