@@ -298,6 +298,89 @@ def test_run_daily_loop_skip_sell_review_never_runs_sell_review(tmp_path):
     assert not any("agent.sell_review" in command for command in commands)
 
 
+def test_run_daily_loop_start_from_6_skips_recommendations_and_runs_later_steps(tmp_path):
+    _write_candidates_latest(tmp_path)
+    _write_suggestion(tmp_path)
+    holdings_path = _write_holdings(tmp_path / "holdings_snapshot.json")
+    recorder = StepRecorder()
+    parser = run_all.build_parser()
+    args = parser.parse_args(["--start-from", "6", "--holdings", str(holdings_path)])
+    recommendation_calls = []
+
+    run_all.run_daily_loop(
+        args,
+        root=tmp_path,
+        python="python",
+        run_step=recorder,
+        print_recommendations=lambda: recommendation_calls.append("called"),
+        print_signal_summary=lambda path: None,
+    )
+
+    commands = [" ".join(cmd) for _, cmd in recorder.calls]
+    assert recommendation_calls == []
+    assert not any("pipeline.fetch_kline" in command for command in commands)
+    assert not any("pipeline.cli preselect" in command for command in commands)
+    assert not any("export_kline_charts" in command for command in commands)
+    assert not any("agent.buy_review" in command for command in commands)
+    assert any(f"python -m agent.sell_review --input {holdings_path}" == command for command in commands)
+    assert any("python -m backtest.cli --mode quant_plus_ai --start 2026-04-24 --end 2026-04-24" == command for command in commands)
+
+
+def test_run_daily_loop_start_from_7_only_runs_backtest_signal(tmp_path):
+    _write_candidates_latest(tmp_path)
+    _write_suggestion(tmp_path)
+    holdings_path = _write_holdings(tmp_path / "holdings_snapshot.json")
+    recorder = StepRecorder()
+    parser = run_all.build_parser()
+    args = parser.parse_args(["--start-from", "7", "--holdings", str(holdings_path)])
+    recommendation_calls = []
+
+    run_all.run_daily_loop(
+        args,
+        root=tmp_path,
+        python="python",
+        run_step=recorder,
+        print_recommendations=lambda: recommendation_calls.append("called"),
+        print_signal_summary=lambda path: None,
+    )
+
+    commands = [" ".join(cmd) for _, cmd in recorder.calls]
+    assert recommendation_calls == []
+    assert not any("pipeline.fetch_kline" in command for command in commands)
+    assert not any("pipeline.cli preselect" in command for command in commands)
+    assert not any("export_kline_charts" in command for command in commands)
+    assert not any("agent.buy_review" in command for command in commands)
+    assert not any("agent.sell_review" in command for command in commands)
+    assert commands == [
+        "python -m backtest.cli --mode quant_plus_ai --start 2026-04-24 --end 2026-04-24"
+    ]
+
+
+def test_run_daily_loop_step_names_use_seven_step_numbering(tmp_path):
+    _write_candidates_latest(tmp_path)
+    _write_suggestion(tmp_path)
+    recorder = StepRecorder()
+    parser = run_all.build_parser()
+    args = parser.parse_args([])
+
+    run_all.run_daily_loop(
+        args,
+        root=tmp_path,
+        python="python",
+        run_step=recorder,
+        print_recommendations=lambda: None,
+        print_signal_summary=lambda path: None,
+    )
+
+    step_names = [step_name for step_name, _ in recorder.calls]
+    assert step_names[:4] == [
+        "1/7  拉取 K 线数据（fetch_kline）",
+        "2/7  量化初选（cli preselect）",
+        "3/7  导出 K 线图（export_kline_charts）",
+        "4/7  双模型图表分析（buy_review）",
+    ]
+
+
 def test_ensure_daily_signal_inputs_requires_dated_candidates(tmp_path):
     _write_suggestion(tmp_path)
 

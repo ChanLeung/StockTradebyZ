@@ -8,6 +8,8 @@ run_all.py
   步骤 3  dashboard/export_kline_charts.py — 导出候选股 K 线图
   步骤 4  agent/buy_review.py       — 双模型图表分析评分
   步骤 5  打印推荐购买的股票
+  步骤 6  agent/sell_review.py      — 当前持仓卖出复评
+  步骤 7  backtest/cli.py           — 生成次日执行信号单
 
 用法：
     python run_all.py
@@ -260,58 +262,62 @@ def run_daily_loop(
     if args.skip_fetch and start == 1:
         start = 2
 
-    # ── 步骤 1：拉取 K 线数据 ─────────────────────────────────────────
+    # ── 步骤 1/7：拉取 K 线数据 ───────────────────────────────────────
     if start <= 1:
         run_step(
-            "1/4  拉取 K 线数据（fetch_kline）",
+            "1/7  拉取 K 线数据（fetch_kline）",
             [python, "-m", "pipeline.fetch_kline"],
         )
 
-    # ── 步骤 2：量化初选 ─────────────────────────────────────────────
+    # ── 步骤 2/7：量化初选 ───────────────────────────────────────────
     if start <= 2:
         run_step(
-            "2/4  量化初选（cli preselect）",
+            "2/7  量化初选（cli preselect）",
             [python, "-m", "pipeline.cli", "preselect"],
         )
 
-    # ── 步骤 3：导出 K 线图 ──────────────────────────────────────────
+    # ── 步骤 3/7：导出 K 线图 ────────────────────────────────────────
     if start <= 3:
         run_step(
-            "3/4  导出 K 线图（export_kline_charts）",
+            "3/7  导出 K 线图（export_kline_charts）",
             [python, str(root / "dashboard" / "export_kline_charts.py")],
         )
 
-    # ── 步骤 4：双模型图表分析 ──────────────────────────────────────
+    # ── 步骤 4/7：双模型图表分析 ─────────────────────────────────────
     if start <= 4:
         run_step(
-            "4/4  双模型图表分析（buy_review）",
+            "4/7  双模型图表分析（buy_review）",
             [python, "-m", "agent.buy_review"],
         )
 
-    # ── 步骤 5：打印推荐结果 ─────────────────────────────────────────
-    print(f"\n{'='*60}")
-    print("[步骤] 5/7  推荐购买的股票")
-    print_recommendations()
+    # ── 步骤 5/7：打印推荐结果 ───────────────────────────────────────
+    if start <= 5:
+        print(f"\n{'='*60}")
+        print("[步骤] 5/7  推荐购买的股票")
+        print_recommendations()
 
     pick_date = load_latest_pick_date(root)
-    holdings_path = resolve_holdings_snapshot(root, args.holdings)
 
-    # ── 步骤 6：持仓卖出复评 ─────────────────────────────────────────
-    if args.skip_sell_review:
-        print("[步骤] 6/7  已跳过持仓卖出复评。")
-    elif holdings_path is None:
-        print("[步骤] 6/7  未找到持仓快照，跳过持仓卖出复评。")
-    else:
-        run_step(
-            "6/7  持仓卖出复评（sell_review）",
-            [python, "-m", "agent.sell_review", "--input", str(holdings_path)],
-        )
+    # ── 步骤 6/7：持仓卖出复评 ───────────────────────────────────────
+    if start <= 6:
+        holdings_path = resolve_holdings_snapshot(root, args.holdings)
+        if args.skip_sell_review:
+            print("[步骤] 6/7  已跳过持仓卖出复评。")
+        elif holdings_path is None:
+            print("[步骤] 6/7  未找到持仓快照，跳过持仓卖出复评。")
+        else:
+            run_step(
+                "6/7  持仓卖出复评（sell_review）",
+                [python, "-m", "agent.sell_review", "--input", str(holdings_path)],
+            )
 
+    # ── 步骤 7/7：单日回测生成次日执行信号单 ─────────────────────────
+    if start > 7:
+        return
     if args.skip_backtest_signal:
         print("[步骤] 7/7  已跳过次日执行信号单生成。")
         return
 
-    # ── 步骤 7：单日回测生成次日执行信号单 ───────────────────────────
     ensure_daily_signal_inputs(root, pick_date)
     run_step(
         "7/7  生成次日执行信号单（backtest.cli）",
