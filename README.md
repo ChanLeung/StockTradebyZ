@@ -26,6 +26,8 @@
 3. 导出候选图表（dashboard/export_kline_charts.py）
 4. 双模型复评（agent/buy_review.py）
 5. 打印推荐结果（读取 suggestion.json）
+6. 当前持仓卖出复评（agent/sell_review.py）
+7. 生成次日执行信号单（backtest.cli）
 
 输出主链路：
 
@@ -33,6 +35,8 @@
 - data/candidates：初选候选列表
 - data/kline/日期：候选图表
 - data/review/日期：AI 单股评分与汇总建议
+- data/review_sell/日期：持仓卖出复评结果
+- data/backtest/quant_plus_ai/日期_日期：次日人工执行信号单
 
 ---
 
@@ -123,7 +127,19 @@ Get-Content .env | ForEach-Object {
 
 ### 3.4 运行一键脚本
 
-在项目根目录执行：
+`python run_all.py` 现在是日常交易闭环入口，会从行情更新一路跑到次日人工执行信号单，不再只是旧版 4 步选股流程。
+
+默认 7 步流程：
+
+1. 拉取最新 K 线数据
+2. 量化初选，生成候选列表
+3. 导出候选股 K 线图
+4. 买入双模型图表复评
+5. 打印买入推荐股票
+6. 当前持仓卖出复评
+7. 生成次日执行信号单
+
+在项目根目录执行完整闭环：
 
 ~~~bash
 python run_all.py
@@ -134,12 +150,26 @@ python run_all.py
 ~~~bash
 python run_all.py --skip-fetch
 python run_all.py --start-from 3
+python run_all.py --holdings data/backtest/quant_plus_ai/2026-04-24_2026-04-24/holdings_snapshot.json
+python run_all.py --skip-sell-review
+python run_all.py --skip-backtest-signal
 ~~~
 
 参数说明：
 
-- --skip-fetch：跳过数据下载，直接进入初选
-- --start-from N：从第 N 步开始执行（1 到 4）
+- `python run_all.py`：执行默认 7 步日常交易闭环
+- `python run_all.py --skip-fetch`：跳过步骤 1 行情下载，适合已有最新数据时使用
+- `python run_all.py --start-from 3`：从步骤 3 导出图表开始执行，跳过行情下载和量化初选
+- `python run_all.py --holdings data/backtest/quant_plus_ai/2026-04-24_2026-04-24/holdings_snapshot.json`：指定当前持仓快照给卖出复评使用
+- `python run_all.py --skip-sell-review`：跳过步骤 6，只生成买入建议和后续信号单
+- `python run_all.py --skip-backtest-signal`：跳过步骤 7，不生成次日执行信号单
+- `--allow-empty-holdings`：兼容参数；没有持仓快照时默认也会继续，并按空仓处理
+
+补充说明：
+
+- 没有持仓快照，或持仓快照为空时，卖出复评会按空仓跳过，不会阻断买入流程
+- 如果当天没有买入候选，脚本会跳过次日执行信号单，避免触发研究回测 CLI 的演示数据回退
+- `python run_all.py backtest ...` 仍作为研究回测入口保留，详见“研究闭环回测”
 
 ---
 
