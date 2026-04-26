@@ -90,7 +90,15 @@ def test_validate_holdings_snapshot_accepts_snapshot_file(tmp_path):
                 "as_of_date": "2026-04-24",
                 "state": {
                     "cash": 1000000.0,
-                    "positions": [{"code": "600000"}],
+                    "positions": [
+                        {
+                            "code": "600000",
+                            "entry_date": "2026-04-20",
+                            "entry_price": 10.0,
+                            "weight": 1.0,
+                            "quantity": 100,
+                        }
+                    ],
                 },
             }
         ),
@@ -103,6 +111,24 @@ def test_validate_holdings_snapshot_accepts_snapshot_file(tmp_path):
 def test_validate_holdings_snapshot_rejects_invalid_file(tmp_path):
     holdings_path = tmp_path / "holdings_snapshot.json"
     holdings_path.write_text(json.dumps({"bad": "shape"}), encoding="utf-8")
+
+    assert run_all.validate_holdings_snapshot(holdings_path) is False
+
+
+def test_validate_holdings_snapshot_rejects_position_missing_required_fields(tmp_path):
+    holdings_path = tmp_path / "holdings_snapshot.json"
+    holdings_path.write_text(
+        json.dumps(
+            {
+                "as_of_date": "2026-04-24",
+                "state": {
+                    "cash": 1000000.0,
+                    "positions": [{"code": "600000"}],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
 
     assert run_all.validate_holdings_snapshot(holdings_path) is False
 
@@ -126,7 +152,15 @@ def _write_holdings(
 ) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     if positions is None:
-        positions = [{"code": "600000"}]
+        positions = [
+            {
+                "code": "600000",
+                "entry_date": "2026-04-20",
+                "entry_price": 10.0,
+                "weight": 1.0,
+                "quantity": 100,
+            }
+        ]
     path.write_text(
         json.dumps(
             {

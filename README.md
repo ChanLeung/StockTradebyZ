@@ -161,7 +161,7 @@ python run_all.py --skip-backtest-signal
 - `python run_all.py --skip-fetch`：跳过步骤 1 行情下载，适合已有最新数据时使用
 - `python run_all.py --start-from 3`：从步骤 3 导出图表开始执行，跳过行情下载和量化初选
 - `python run_all.py --holdings data/backtest/quant_plus_ai/2026-04-24_2026-04-24/holdings_snapshot.json`：指定当前持仓快照，供卖出复评和次日执行信号单作为初始持仓使用
-- `python run_all.py --skip-sell-review`：跳过步骤 6，只生成买入建议和后续信号单
+- `python run_all.py --skip-sell-review`：跳过步骤 6；如未跳过步骤 7，仍会使用当前持仓生成后续信号单
 - `python run_all.py --skip-backtest-signal`：跳过步骤 7，不生成次日执行信号单
 - `--allow-empty-holdings`：兼容参数；没有持仓快照时默认也会继续，并按空仓处理
 
@@ -323,7 +323,7 @@ python run_all.py backtest --mode quant_only --start 2026-01-01 --end 2026-01-31
 - 当系统进入 `risk_off` 时，回测现在不仅会禁止开新仓，还会按最大总暴露比例主动裁减已有持仓
 - 买入股数会按“当前组合总权益的 1/10”为单票目标预算，再按 `100` 股一手向下取整，保证现金足够后再下单
 - 每次回测结束后，输出目录还会写出 `holdings_snapshot.json`，可直接作为后续卖出复评或人工执行的标准化持仓输入
-- 如果本地没有可用的历史候选归档，CLI 才会回退到内置 demo 数据
+- 没有显式初始持仓时，CLI 在本地数据无法组装为有效回测输入时会回退到内置 demo 数据；显式传入初始持仓时不会回退 demo
 - 如果本地没有准备基准指数 CSV，动态基准会先用 `ALLA=0` 的兜底收益跑通主链路
 
 ---

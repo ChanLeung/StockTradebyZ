@@ -58,7 +58,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--skip-sell-review",
         action="store_true",
-        help="跳过持仓卖出复评，只生成买入建议",
+        help="跳过持仓卖出复评；如未跳过信号单，仍会使用持仓快照生成执行信号",
     )
     parser.add_argument(
         "--skip-backtest-signal",
@@ -104,7 +104,13 @@ def validate_holdings_snapshot(path: Path) -> bool:
     positions = state.get("positions")
     if not isinstance(positions, list):
         return False
-    return all(isinstance(item, dict) and item.get("code") for item in positions)
+    required_position_keys = {"code", "entry_date", "entry_price", "weight"}
+    return all(
+        isinstance(item, dict)
+        and required_position_keys.issubset(item.keys())
+        and item.get("code")
+        for item in positions
+    )
 
 
 def resolve_holdings_snapshot(root: Path = ROOT, explicit_path: str | None = None) -> Path | None:
