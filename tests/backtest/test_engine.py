@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 
 import backtest.cli as backtest_cli
-from backtest.cli import build_parser, load_backtest_config, load_local_backtest_bundle, main as cli_main
+from backtest.cli import build_backtest_bundle, build_parser, load_backtest_config, load_local_backtest_bundle, main as cli_main
 from backtest.engine import run_backtest
 from backtest.reporting import build_signal_sheet
 from pipeline.schemas import Candidate
@@ -164,6 +164,42 @@ def test_backtest_cli_initial_holdings_populates_signal_sheet(tmp_path, monkeypa
     signal_path = output_dir / "quant_only" / "2026-01-06_2026-01-06" / "signal_sheet.json"
     signal_sheet = json.loads(signal_path.read_text(encoding="utf-8"))
     assert signal_sheet["current_holdings"][0]["code"] == "600000"
+
+
+def test_build_backtest_bundle_keeps_demo_fallback_without_initial_state(tmp_path):
+    bundle = build_backtest_bundle(
+        tmp_path,
+        start="2026-01-01",
+        end="2026-01-05",
+        mode="quant_only",
+    )
+
+    assert bundle["daily_candidates"]
+    assert bundle["next_open_prices"]
+
+
+def test_build_backtest_bundle_with_initial_state_does_not_fallback_to_demo(tmp_path):
+    initial_state = PortfolioState(
+        cash=5000.0,
+        positions=[
+            Position(
+                code="600000",
+                entry_date="2026-01-02",
+                entry_price=10.0,
+                weight=1.0,
+                quantity=100,
+            )
+        ],
+    )
+
+    with pytest.raises(FileNotFoundError, match="本地|candidates"):
+        build_backtest_bundle(
+            tmp_path,
+            start="2026-01-01",
+            end="2026-01-05",
+            mode="quant_only",
+            initial_state=initial_state,
+        )
 
 
 def test_backtest_cli_writes_daily_snapshots_file(tmp_path):

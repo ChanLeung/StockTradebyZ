@@ -257,6 +257,8 @@ def build_backtest_bundle(
             initial_state=initial_state,
         )
     except FileNotFoundError:
+        if initial_state is not None:
+            raise
         return build_demo_bundle(start, end, mode)
 
 
